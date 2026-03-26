@@ -142,9 +142,13 @@ export default function PlanPresentation() {
     <div className="h-full flex flex-col items-center justify-center p-12">
       <Clock className="w-14 h-14 text-muted-foreground mb-5" />
       <h2 className="text-xl font-bold text-foreground mb-2">{section} em preparação</h2>
-      <p className="text-muted-foreground text-center max-w-md text-sm">
-        Esta seção será gerada automaticamente com IA. Em breve estará disponível.
+      <p className="text-muted-foreground text-center max-w-md text-sm mb-6">
+        Esta seção será gerada automaticamente com IA.
       </p>
+      <Button onClick={() => handleGenerate("all")} disabled={generating}>
+        {generating ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Wand2 className="w-4 h-4 mr-2" />}
+        Gerar Plano Completo com IA
+      </Button>
     </div>
   );
 
