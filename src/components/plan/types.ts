@@ -12,6 +12,7 @@ export interface PlanSlideProps {
   hasAIContent: boolean;
   onGenerate: (type: string) => void;
   onRefreshData: () => void;
+  isMentee?: boolean;
 }
 
 export interface DiagnosisData {
