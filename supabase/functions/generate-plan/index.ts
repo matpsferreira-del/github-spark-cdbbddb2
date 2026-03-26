@@ -174,14 +174,14 @@ NÃO inclua "Segue meu contato" - o sistema adiciona automaticamente.` },
   ], tools, { type: "function", function: { name: "generate_messages" } });
 }
 
-// ─── Generate schedule (4 weeks, multiple activities per day) ───
+// ─── Generate schedule (4 weeks) ───
 async function generateSchedule(plan: any) {
   const linkedinGoals = plan.linkedin_goals || {};
   const tools = [{
     type: "function",
     function: {
       name: "generate_schedule",
-      description: "Generate a 4-week activity schedule with multiple activities per day",
+      description: "Generate a 4-week activity schedule",
       parameters: {
         type: "object",
         properties: {
@@ -192,7 +192,7 @@ async function generateSchedule(plan: any) {
               properties: {
                 week_number: { type: "number", minimum: 1, maximum: 4 },
                 day_of_week: { type: "string", enum: ["monday", "tuesday", "wednesday", "thursday", "friday"] },
-                activity: { type: "string", description: "Activity description with time estimate in parentheses, e.g. 'Fazer 25 conexões no LinkedIn (60 minutos)'" },
+                activity: { type: "string" },
                 category: { type: "string", enum: ["linkedin", "networking", "content", "research", "applications"] },
               },
               required: ["week_number", "day_of_week", "activity", "category"],
@@ -210,8 +210,7 @@ async function generateSchedule(plan: any) {
     { role: "system", content: `Você é um mentor de carreira especializado em recolocação profissional.
 Crie um cronograma detalhado de 4 semanas com 3 atividades por dia (seg a sex) = 60 atividades total.
 Cada atividade deve incluir o tempo estimado em parênteses.
-Evolua a complexidade: semana 1 = fundação, semana 2 = aceleração, semanas 3-4 = consolidação.
-Categorias: linkedin, networking, content, research, applications.` },
+Evolua a complexidade: semana 1 = fundação, semana 2 = aceleração, semanas 3-4 = consolidação.` },
     { role: "user", content: `Situação: ${plan.current_situation}. Metas: ${linkedinGoals.connectionsPerDay || 50} conexões/dia, ${linkedinGoals.postsPerWeek || 1} posts/semana. Modelo: ${plan.work_model}. Cargo: ${plan.current_position}.` },
   ], tools, { type: "function", function: { name: "generate_schedule" } });
 }
@@ -222,7 +221,7 @@ async function generateDiagnosis(plan: any) {
     type: "function",
     function: {
       name: "generate_diagnosis",
-      description: "Generate SWOT analysis, step-by-step guide, monthly goals, and LinkedIn tips",
+      description: "Generate SWOT, steps, monthly goals, and LinkedIn tips",
       parameters: {
         type: "object",
         properties: {
@@ -274,28 +273,116 @@ async function generateDiagnosis(plan: any) {
   return await callAI([
     { role: "system", content: `Você é um consultor sênior de recolocação profissional no Brasil.
 Gere:
-1. Análise SWOT completa com summary detalhado, 4 forças, 4 fraquezas, 5 oportunidades, 4 ameaças
-2. 7 passos diários detalhados para LinkedIn (título, descrição completa, dica prática, tempo estimado)
-3. Metas para 3 meses (Fundação, Aceleração, Colheita) com 5-6 itens cada
-4. 5 dicas detalhadas de otimização do perfil LinkedIn
-
-Seja específico e personalizado para o perfil do candidato.` },
-    { role: "user", content: `Nome: ${plan.mentee_name}. Cargo: ${plan.current_position}. Área: ${plan.current_area}. Situação: ${plan.current_situation === "employed" ? "Empregado" : "Desempregado"}. Cidade: ${plan.city}, ${plan.state}. Modelo: ${plan.work_model}.${plan.wants_career_change ? ` Mudança de carreira para: ${(plan.target_positions || []).join(", ")}` : ""}` },
+1. Análise SWOT com summary, 4 forças, 4 fraquezas, 5 oportunidades, 4 ameaças
+2. 7 passos diários para LinkedIn (título, descrição, dica, tempo)
+3. Metas para 3 meses (5-6 itens cada)
+4. 5 dicas de otimização do perfil LinkedIn` },
+    { role: "user", content: `Nome: ${plan.mentee_name}. Cargo: ${plan.current_position}. Área: ${plan.current_area}. Situação: ${plan.current_situation === "employed" ? "Empregado" : "Desempregado"}. Cidade: ${plan.city}, ${plan.state}. Modelo: ${plan.work_model}.${plan.wants_career_change ? ` Transição: ${(plan.target_positions || []).join(", ")}` : ""}` },
   ], tools, { type: "function", function: { name: "generate_diagnosis" } });
+}
+
+// ─── Generate content prompts for Gemini ───
+async function generateContentPrompts(plan: any) {
+  const tools = [{
+    type: "function",
+    function: {
+      name: "generate_content_prompts",
+      description: "Generate ready-to-use prompts for Gemini to create LinkedIn posts",
+      parameters: {
+        type: "object",
+        properties: {
+          prompts: {
+            type: "array",
+            items: {
+              type: "object",
+              properties: {
+                title: { type: "string" },
+                prompt: { type: "string" },
+              },
+              required: ["title", "prompt"],
+              additionalProperties: false,
+            },
+          },
+        },
+        required: ["prompts"],
+        additionalProperties: false,
+      },
+    },
+  }];
+
+  return await callAI([
+    { role: "system", content: `Você é um especialista em marketing de conteúdo no LinkedIn.
+Gere 8 prompts COMPLETOS e prontos para colar no Gemini. Cada prompt deve:
+1. Ter um título curto descritivo
+2. Conter instruções claras para a IA gerar o post completo
+3. Incluir: tom de voz, estrutura do post, hashtags sugeridas, call-to-action
+4. Ser personalizado para o perfil do candidato
+5. Incluir no prompt: "Crie uma publicação para LinkedIn com aproximadamente 200-300 palavras..."
+
+Os temas devem cobrir: liderança, resultados, tendências da área, aprendizados, dicas técnicas, storytelling profissional, reflexões e networking.` },
+    { role: "user", content: `Nome: ${plan.mentee_name}. Cargo: ${plan.current_position}. Área: ${plan.current_area}. ${plan.current_situation === "employed" ? "Empregado" : "Desempregado"}.` },
+  ], tools, { type: "function", function: { name: "generate_content_prompts" } });
+}
+
+// ─── Generate LinkedIn profile optimization ───
+async function generateLinkedInProfile(plan: any, cvTexts: string[]) {
+  const tools = [{
+    type: "function",
+    function: {
+      name: "generate_linkedin_profile",
+      description: "Generate optimized LinkedIn profile sections",
+      parameters: {
+        type: "object",
+        properties: {
+          sections: {
+            type: "array",
+            items: {
+              type: "object",
+              properties: {
+                key: { type: "string", enum: ["headline", "about", "experience", "skills"] },
+                title: { type: "string" },
+                ideal_text: { type: "string" },
+                explanation: { type: "string" },
+              },
+              required: ["key", "title", "ideal_text", "explanation"],
+              additionalProperties: false,
+            },
+          },
+        },
+        required: ["sections"],
+        additionalProperties: false,
+      },
+    },
+  }];
+
+  const cvContext = cvTexts.length > 0
+    ? `\n\nTexto extraído dos documentos do candidato:\n${cvTexts.join("\n---\n")}`
+    : "";
+
+  return await callAI([
+    { role: "system", content: `Você é um especialista em otimização de perfis LinkedIn no Brasil.
+Com base no perfil e documentos do candidato, gere 4 seções otimizadas:
+1. headline: título ideal do LinkedIn (até 220 caracteres)
+2. about: seção "Sobre" completa e otimizada (300-500 palavras)
+3. experience: como descrever as experiências profissionais (modelo com bullet points)
+4. skills: competências recomendadas e como organizá-las
+
+Para cada seção, forneça:
+- ideal_text: o texto pronto para usar
+- explanation: explicação detalhada de por que esse formato funciona e dicas` },
+    { role: "user", content: `Nome: ${plan.mentee_name}. Cargo: ${plan.current_position}. Área: ${plan.current_area}. Cidade: ${plan.city}, ${plan.state}. ${plan.current_situation === "employed" ? "Empregado" : "Desempregado"}.${plan.wants_career_change ? ` Transição: ${(plan.target_positions || []).join(", ")}` : ""}${cvContext}` },
+  ], tools, { type: "function", function: { name: "generate_linkedin_profile" } });
 }
 
 function getErrorMessage(error: unknown) {
   if (error instanceof Error) return error.message;
   if (typeof error === "string") return error;
-
   if (error && typeof error === "object") {
-    const maybeError = error as { message?: string; details?: string; code?: string };
-    const parts = [maybeError.message, maybeError.details].filter(Boolean);
-
+    const e = error as { message?: string; details?: string; code?: string };
+    const parts = [e.message, e.details].filter(Boolean);
     if (parts.length > 0) return parts.join(" — ");
-    if (maybeError.code) return `Database error (${maybeError.code})`;
+    if (e.code) return `Database error (${e.code})`;
   }
-
   return "Unknown error";
 }
 
@@ -308,14 +395,8 @@ serve(async (req) => {
     const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
 
     if (!supabaseUrl || !supabaseKey) {
-      console.error("Missing edge function environment variables", {
-        hasSupabaseUrl: !!supabaseUrl,
-        hasServiceRoleKey: !!supabaseKey,
-      });
-
       return new Response(JSON.stringify({ error: "Server configuration error" }), {
-        status: 500,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
+        status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
 
@@ -385,7 +466,7 @@ serve(async (req) => {
       }
 
       case "all": {
-        // Delete existing data first (for regeneration)
+        // Delete existing data first
         await Promise.all([
           supabase.from("companies").delete().eq("plan_id", plan_id),
           supabase.from("job_title_variations").delete().eq("plan_id", plan_id),
@@ -393,13 +474,23 @@ serve(async (req) => {
           supabase.from("schedule_activities").delete().eq("plan_id", plan_id),
         ]);
 
+        // Fetch CV documents for LinkedIn profile optimization
+        const { data: cvDocs } = await supabase
+          .from("cv_documents")
+          .select("extracted_text")
+          .eq("plan_id", plan_id)
+          .not("extracted_text", "is", null);
+        const cvTexts = (cvDocs || []).map((d: any) => d.extracted_text).filter(Boolean);
+
         // Generate all content in parallel
-        const [companiesRes, titlesRes, messagesRes, scheduleRes, diagnosisRes] = await Promise.all([
+        const [companiesRes, titlesRes, messagesRes, scheduleRes, diagnosisRes, contentPromptsRes, linkedinProfileRes] = await Promise.all([
           generateCompanies(plan),
           generateJobTitles(plan),
           generateMessages(plan),
           generateSchedule(plan),
           generateDiagnosis(plan),
+          generateContentPrompts(plan),
+          generateLinkedInProfile(plan, cvTexts),
         ]);
 
         const companies = companiesRes.companies.map((c: any) => ({ ...c, plan_id, kanban_stage: "identified" }));
@@ -419,12 +510,14 @@ serve(async (req) => {
         if (m.error) throw m.error;
         if (s.error) throw s.error;
 
-        // Store diagnosis data in general_notes
+        // Store diagnosis + content_prompts + linkedin_profile in general_notes
         const diagnosisData = JSON.stringify({
           swot: diagnosisRes.swot,
           steps: diagnosisRes.steps,
           month_goals: diagnosisRes.month_goals,
           linkedin_tips: diagnosisRes.linkedin_tips,
+          content_prompts: contentPromptsRes.prompts,
+          linkedin_profile: { sections: linkedinProfileRes.sections },
         });
         await supabase.from("mentorship_plans").update({
           general_notes: diagnosisData,
@@ -437,6 +530,8 @@ serve(async (req) => {
           messages: templates.length,
           schedule: activities.length,
           diagnosis: true,
+          content_prompts: contentPromptsRes.prompts?.length || 0,
+          linkedin_profile: true,
         };
         break;
       }

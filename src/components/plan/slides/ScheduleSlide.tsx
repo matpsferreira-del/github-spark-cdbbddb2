@@ -21,14 +21,15 @@ export default function ScheduleSlide({ plan, schedule, generating, onGenerate, 
   const monthGoals = data.month_goals;
   const completedCount = schedule.filter(a => a.is_completed).length;
 
-  const toggleActivity = async (id: string, currentState: boolean) => {
+  const toggleActivity = async (activityId: string, checked: boolean | "indeterminate") => {
+    const newState = checked === true;
     const { error } = await supabase
       .from("schedule_activities")
       .update({
-        is_completed: !currentState,
-        completed_at: !currentState ? new Date().toISOString() : null,
+        is_completed: newState,
+        completed_at: newState ? new Date().toISOString() : null,
       })
-      .eq("id", id);
+      .eq("id", activityId);
 
     if (error) toast.error("Erro ao atualizar atividade");
     else onRefreshData();
@@ -110,7 +111,7 @@ export default function ScheduleSlide({ plan, schedule, generating, onGenerate, 
                           <label key={activity.id} className="flex items-start gap-2 cursor-pointer">
                             <Checkbox
                               checked={activity.is_completed}
-                              onCheckedChange={() => toggleActivity(activity.id, activity.is_completed)}
+                              onCheckedChange={(checked) => toggleActivity(activity.id, checked)}
                               className="mt-0.5 shrink-0"
                             />
                             <span className={`text-xs leading-snug ${activity.is_completed ? "line-through text-muted-foreground" : "text-foreground"}`}>

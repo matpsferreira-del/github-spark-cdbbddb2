@@ -1,13 +1,64 @@
+import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Loader2, Wand2, Building2, CheckCircle2, BarChart3 } from "lucide-react";
 import type { PlanSlideProps } from "../types";
 
-export default function KpisSlide({ plan, companies, companyTiers, templates, schedule, jobTitles, contacts }: PlanSlideProps) {
-  const linkedinGoals = plan.linkedin_goals as any;
+export default function DashboardSlide({ plan, companies, companyTiers, templates, schedule, jobTitles, contacts, generating, hasAIContent, onGenerate }: PlanSlideProps) {
+  const date = new Date(plan.created_at).toLocaleDateString("pt-BR", {
+    day: "numeric", month: "long", year: "numeric",
+  });
 
   return (
     <div className="p-8">
-      <p className="text-primary text-sm tracking-[0.2em] font-medium mb-1">MÉTRICAS & ACOMPANHAMENTO</p>
-      <h2 className="text-3xl font-bold text-foreground mb-6">KPIs do Plano</h2>
+      {/* Cover Section */}
+      <div className="flex items-center justify-between mb-8">
+        <div>
+          <p className="text-primary text-sm tracking-[0.3em] font-medium mb-1">ORION RECRUITMENT</p>
+          <h1 className="text-3xl font-bold text-foreground mb-1">Plano Estratégico</h1>
+          <p className="text-muted-foreground">de Recolocação Profissional</p>
+        </div>
+        <div className="w-14 h-14 rounded-2xl bg-primary flex items-center justify-center">
+          <Building2 className="w-7 h-7 text-primary-foreground" />
+        </div>
+      </div>
+
+      {/* Mentee Card */}
+      <div className="bg-card rounded-xl p-6 border border-border mb-8">
+        <div className="flex items-center justify-between">
+          <div>
+            <h2 className="text-xl font-bold text-foreground">{plan.mentee_name}</h2>
+            <p className="text-muted-foreground text-sm">{plan.current_position} · {plan.current_area}</p>
+            <div className="flex items-center gap-2 text-xs text-muted-foreground mt-1">
+              <span>{plan.city}, {plan.state}</span>
+              <span>•</span>
+              <span>{plan.current_situation === "employed" ? "Empregado" : "Desempregado"}</span>
+              <span>•</span>
+              <Badge variant="outline" className="text-foreground text-xs">{plan.work_model === "remoto" ? "Remoto" : plan.work_model === "presencial" ? "Presencial" : "Híbrido"}</Badge>
+            </div>
+          </div>
+          <div className="text-right">
+            <p className="text-muted-foreground text-xs">{date}</p>
+            {!hasAIContent && (
+              <Button onClick={() => onGenerate("all")} disabled={generating} className="mt-2" size="sm">
+                {generating ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Wand2 className="w-4 h-4 mr-2" />}
+                Gerar Plano Completo
+              </Button>
+            )}
+            {hasAIContent && (
+              <div className="mt-2 flex items-center gap-1.5 text-xs text-primary">
+                <CheckCircle2 className="w-3.5 h-3.5" />
+                <span>Plano gerado</span>
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+
+      {/* KPIs Grid */}
+      <div className="flex items-center gap-2 mb-4">
+        <BarChart3 className="w-4 h-4 text-primary" />
+        <h3 className="text-foreground font-semibold">Dashboard</h3>
+      </div>
 
       <div className="grid grid-cols-2 md:grid-cols-3 gap-4 mb-8">
         <div className="bg-card border border-border rounded-lg p-5 text-center">
@@ -36,6 +87,7 @@ export default function KpisSlide({ plan, companies, companyTiers, templates, sc
         </div>
       </div>
 
+      {/* Tier Distribution */}
       <h3 className="text-foreground font-semibold mb-3">Distribuição por Tier</h3>
       <div className="grid grid-cols-3 gap-4 mb-8">
         {(["A", "B", "C"] as const).map(tier => (
@@ -48,6 +100,7 @@ export default function KpisSlide({ plan, companies, companyTiers, templates, sc
         ))}
       </div>
 
+      {/* Funnel Progress */}
       <h3 className="text-foreground font-semibold mb-3">Progresso do Funil</h3>
       <div className="grid grid-cols-5 gap-3">
         {[

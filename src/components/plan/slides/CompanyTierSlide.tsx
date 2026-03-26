@@ -1,5 +1,4 @@
 import { Badge } from "@/components/ui/badge";
-import { Checkbox } from "@/components/ui/checkbox";
 import type { Company } from "@/types/mentorship";
 
 interface Props {
@@ -31,7 +30,7 @@ export default function CompanyTierSlide({ tier, companies }: Props) {
   if (companies.length === 0) {
     return (
       <div className="h-full flex flex-col items-center justify-center p-12">
-        <p className="text-muted-foreground">Nenhuma empresa neste tier. Gere o plano na aba Capa.</p>
+        <p className="text-muted-foreground">Nenhuma empresa neste tier. Gere o plano na aba Dashboard.</p>
       </div>
     );
   }
@@ -59,14 +58,10 @@ export default function CompanyTierSlide({ tier, companies }: Props) {
       <div className="grid grid-cols-2 gap-3">
         {companies.map((company) => (
           <div key={company.id} className="bg-card border border-border rounded-lg p-4 flex items-center gap-3">
-            <Checkbox className="shrink-0" />
             <div className="flex-1 min-w-0">
               <h3 className="text-foreground font-semibold truncate">{company.name}</h3>
               <p className="text-muted-foreground text-xs truncate">{company.segment}</p>
             </div>
-            {company.has_openings && (
-              <Badge className="bg-green-600 text-white shrink-0 text-xs">Vagas</Badge>
-            )}
           </div>
         ))}
       </div>

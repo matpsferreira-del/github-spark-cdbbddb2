@@ -35,6 +35,18 @@ export interface DiagnosisData {
     month3: string[];
   };
   linkedin_tips?: string[];
+  content_prompts?: Array<{
+    title: string;
+    prompt: string;
+  }>;
+  linkedin_profile?: {
+    sections: Array<{
+      key: string;
+      title: string;
+      ideal_text: string;
+      explanation: string;
+    }>;
+  };
 }
 
 export function parseDiagnosisData(generalNotes: string | null): DiagnosisData {
