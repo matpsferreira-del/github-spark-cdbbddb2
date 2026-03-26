@@ -1,0 +1,1 @@
+ALTER TABLE public.companies ALTER COLUMN relevance_score TYPE integer USING relevance_score::integer;
