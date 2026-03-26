@@ -320,6 +320,11 @@ export default function PlanPresentation() {
           {renderSlide()}
         </div>
       </div>
+
+      {/* Footer */}
+      <div className="border-t border-border px-6 py-2 text-center shrink-0">
+        <p className="text-muted-foreground text-xs">powered by <span className="text-primary font-medium">Orion Recruitment</span></p>
+      </div>
     </div>
   );
 }
