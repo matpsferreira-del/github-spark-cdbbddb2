@@ -111,8 +111,9 @@ export default function ScheduleSlide({ plan, schedule, generating, onGenerate, 
                           <label key={activity.id} className="flex items-start gap-2 cursor-pointer">
                             <Checkbox
                               checked={activity.is_completed}
-                              onCheckedChange={() => toggleActivity(activity.id, activity.is_completed)}
+                              onCheckedChange={(checked) => toggleActivity(activity.id, checked)}
                               className="mt-0.5 shrink-0"
+                            />
                             />
                             <span className={`text-xs leading-snug ${activity.is_completed ? "line-through text-muted-foreground" : "text-foreground"}`}>
                               {activity.activity}
