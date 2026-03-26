@@ -1,5 +1,5 @@
 import { useParams, useNavigate } from "react-router-dom";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
@@ -7,10 +7,11 @@ import { Badge } from "@/components/ui/badge";
 import {
   Loader2, ArrowLeft, Briefcase, Building2, Target, MessageSquare,
   Sparkles, Calendar, Search, TrendingUp, CheckCircle2, BarChart3,
-  MapPin, ChevronLeft, ChevronRight, Users, Clock
+  MapPin, ChevronLeft, ChevronRight, Users, Clock, Wand2
 } from "lucide-react";
 import { useState, useMemo } from "react";
-import type { MentorshipPlan, Company } from "@/types/mentorship";
+import { toast } from "sonner";
+import type { MentorshipPlan, Company, MessageTemplate, ScheduleActivity, JobTitleVariation } from "@/types/mentorship";
 
 const slides = [
   { id: "cover", title: "Capa", icon: Briefcase },
@@ -32,7 +33,8 @@ export default function PlanPresentation() {
   const navigate = useNavigate();
   const { user } = useAuth();
   const [currentSlide, setCurrentSlide] = useState(0);
-
+  const [generating, setGenerating] = useState(false);
+  const queryClient = useQueryClient();
   const { data: plan, isLoading } = useQuery({
     queryKey: ["plan", id],
     queryFn: async () => {
@@ -51,12 +53,39 @@ export default function PlanPresentation() {
   const { data: companies = [] } = useQuery({
     queryKey: ["companies", id],
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from("companies")
-        .select("*")
-        .eq("plan_id", id!);
+      const { data, error } = await supabase.from("companies").select("*").eq("plan_id", id!);
       if (error) throw error;
       return data as Company[];
+    },
+    enabled: !!id,
+  });
+
+  const { data: templates = [] } = useQuery({
+    queryKey: ["templates", id],
+    queryFn: async () => {
+      const { data, error } = await supabase.from("message_templates").select("*").eq("plan_id", id!);
+      if (error) throw error;
+      return data as MessageTemplate[];
+    },
+    enabled: !!id,
+  });
+
+  const { data: schedule = [] } = useQuery({
+    queryKey: ["schedule", id],
+    queryFn: async () => {
+      const { data, error } = await supabase.from("schedule_activities").select("*").eq("plan_id", id!);
+      if (error) throw error;
+      return data as ScheduleActivity[];
+    },
+    enabled: !!id,
+  });
+
+  const { data: jobTitles = [] } = useQuery({
+    queryKey: ["jobTitles", id],
+    queryFn: async () => {
+      const { data, error } = await supabase.from("job_title_variations").select("*").eq("plan_id", id!);
+      if (error) throw error;
+      return data as JobTitleVariation[];
     },
     enabled: !!id,
   });
@@ -66,6 +95,29 @@ export default function PlanPresentation() {
     B: companies.filter(c => c.tier === "B"),
     C: companies.filter(c => c.tier === "C"),
   }), [companies]);
+
+  const hasAIContent = companies.length > 0 || templates.length > 0 || schedule.length > 0 || jobTitles.length > 0;
+
+  const handleGenerate = async (type: string = "all") => {
+    setGenerating(true);
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      const resp = await supabase.functions.invoke("generate-plan", {
+        body: { plan_id: id, type },
+      });
+      if (resp.error) throw resp.error;
+      toast.success("Conteúdo gerado com sucesso pela IA!");
+      queryClient.invalidateQueries({ queryKey: ["companies", id] });
+      queryClient.invalidateQueries({ queryKey: ["templates", id] });
+      queryClient.invalidateQueries({ queryKey: ["schedule", id] });
+      queryClient.invalidateQueries({ queryKey: ["jobTitles", id] });
+      queryClient.invalidateQueries({ queryKey: ["plan", id] });
+    } catch (error: any) {
+      toast.error(error.message || "Erro ao gerar conteúdo");
+    } finally {
+      setGenerating(false);
+    }
+  };
 
   if (isLoading) {
     return (
@@ -90,9 +142,13 @@ export default function PlanPresentation() {
     <div className="h-full flex flex-col items-center justify-center p-12">
       <Clock className="w-14 h-14 text-muted-foreground mb-5" />
       <h2 className="text-xl font-bold text-foreground mb-2">{section} em preparação</h2>
-      <p className="text-muted-foreground text-center max-w-md text-sm">
-        Esta seção será gerada automaticamente com IA. Em breve estará disponível.
+      <p className="text-muted-foreground text-center max-w-md text-sm mb-6">
+        Esta seção será gerada automaticamente com IA.
       </p>
+      <Button onClick={() => handleGenerate("all")} disabled={generating}>
+        {generating ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Wand2 className="w-4 h-4 mr-2" />}
+        Gerar Plano Completo com IA
+      </Button>
     </div>
   );
 
@@ -119,6 +175,57 @@ export default function PlanPresentation() {
                 <span>{plan.city}, {plan.state}</span>
               </div>
             </div>
+            {!hasAIContent && (
+              <Button onClick={() => handleGenerate("all")} disabled={generating} className="mt-8" size="lg">
+                {generating ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Wand2 className="w-4 h-4 mr-2" />}
+                Gerar Plano Completo com IA
+              </Button>
+            )}
+          </div>
+        );
+
+      case "diagnosis":
+        return (
+          <div className="p-8">
+            <h2 className="text-2xl font-bold text-foreground mb-6">Diagnóstico do Perfil</h2>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="bg-card border border-border rounded-lg p-4">
+                <p className="text-muted-foreground text-sm">Cargo Atual</p>
+                <p className="text-foreground font-semibold">{plan.current_position}</p>
+              </div>
+              <div className="bg-card border border-border rounded-lg p-4">
+                <p className="text-muted-foreground text-sm">Área</p>
+                <p className="text-foreground font-semibold">{plan.current_area}</p>
+              </div>
+              <div className="bg-card border border-border rounded-lg p-4">
+                <p className="text-muted-foreground text-sm">Situação</p>
+                <p className="text-foreground font-semibold">{plan.current_situation === "employed" ? "Empregado" : "Desempregado"}</p>
+              </div>
+              <div className="bg-card border border-border rounded-lg p-4">
+                <p className="text-muted-foreground text-sm">Modelo</p>
+                <p className="text-foreground font-semibold capitalize">{plan.work_model}</p>
+              </div>
+              <div className="bg-card border border-border rounded-lg p-4">
+                <p className="text-muted-foreground text-sm">Localização</p>
+                <p className="text-foreground font-semibold">{plan.city}, {plan.state}</p>
+              </div>
+              <div className="bg-card border border-border rounded-lg p-4">
+                <p className="text-muted-foreground text-sm">Mudança de Carreira</p>
+                <p className="text-foreground font-semibold">{plan.wants_career_change ? "Sim" : "Não"}</p>
+              </div>
+            </div>
+            {jobTitles.length > 0 && (
+              <div className="mt-6">
+                <h3 className="text-lg font-semibold text-foreground mb-3">Variações de Cargo (LinkedIn)</h3>
+                <div className="flex flex-wrap gap-2">
+                  {jobTitles.map(jt => (
+                    <Badge key={jt.id} variant={jt.type === "target_position" ? "default" : "secondary"}>
+                      {jt.title}
+                    </Badge>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
         );
 
@@ -141,9 +248,7 @@ export default function PlanPresentation() {
               <h2 className="text-2xl font-bold text-foreground">Mapeamento de Empresas</h2>
             </div>
             <p className="text-muted-foreground mb-6">{tierDescriptions[tier]}</p>
-            {tierCompanies.length === 0 ? (
-              <p className="text-muted-foreground text-center py-8">Nenhuma empresa mapeada neste tier ainda.</p>
-            ) : (
+            {tierCompanies.length === 0 ? renderNotReady("Empresas Tier " + tier) : (
               <div className="grid gap-3">
                 {tierCompanies.map((company) => (
                   <div key={company.id} className="bg-card border border-border rounded-lg p-4 flex items-center justify-between">
@@ -152,8 +257,8 @@ export default function PlanPresentation() {
                       <p className="text-muted-foreground text-sm">{company.segment}</p>
                     </div>
                     <div className="flex items-center gap-2">
-                      {company.has_openings && <Badge variant="outline" className="text-green-400 border-green-400/30">Vagas abertas</Badge>}
-                      <Badge variant="secondary">{company.kanban_stage}</Badge>
+                      {company.has_openings && <Badge variant="outline" className="text-primary border-primary/30">Vagas abertas</Badge>}
+                      <Badge variant="secondary">{company.relevance_score}%</Badge>
                     </div>
                   </div>
                 ))}
@@ -162,6 +267,52 @@ export default function PlanPresentation() {
           </div>
         );
       }
+
+      case "messages":
+        if (templates.length === 0) return renderNotReady("Mensagens");
+        return (
+          <div className="p-8">
+            <h2 className="text-2xl font-bold text-foreground mb-6">Templates de Mensagens</h2>
+            <div className="space-y-6">
+              {templates.map(t => (
+                <div key={t.id} className="bg-card border border-border rounded-lg p-6">
+                  <Badge className="mb-3">{t.type === "hr" ? "Para RH" : "Para Decisor"}</Badge>
+                  <p className="text-foreground whitespace-pre-wrap text-sm">{t.template}</p>
+                </div>
+              ))}
+            </div>
+          </div>
+        );
+
+      case "schedule":
+        if (schedule.length === 0) return renderNotReady("Cronograma");
+        const weeks = [1, 2, 3, 4];
+        const days = ["monday", "tuesday", "wednesday", "thursday", "friday"];
+        const dayLabels: Record<string, string> = { monday: "Seg", tuesday: "Ter", wednesday: "Qua", thursday: "Qui", friday: "Sex" };
+        return (
+          <div className="p-8">
+            <h2 className="text-2xl font-bold text-foreground mb-6">Cronograma Semanal</h2>
+            <div className="space-y-6">
+              {weeks.map(week => (
+                <div key={week}>
+                  <h3 className="text-lg font-semibold text-primary mb-3">Semana {week}</h3>
+                  <div className="grid grid-cols-5 gap-2">
+                    {days.map(day => {
+                      const activity = schedule.find(a => a.week_number === week && a.day_of_week === day);
+                      return (
+                        <div key={day} className="bg-card border border-border rounded-lg p-3">
+                          <p className="text-muted-foreground text-xs font-semibold mb-1">{dayLabels[day]}</p>
+                          <p className="text-foreground text-xs">{activity?.activity || "—"}</p>
+                          {activity && <Badge variant="outline" className="mt-1 text-xs">{activity.category}</Badge>}
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        );
 
       default:
         return renderNotReady(slide.title);
@@ -177,6 +328,12 @@ export default function PlanPresentation() {
           Voltar
         </Button>
         <div className="flex items-center gap-2">
+          {!hasAIContent && (
+            <Button onClick={() => handleGenerate("all")} disabled={generating} size="sm" variant="default">
+              {generating ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Wand2 className="w-4 h-4 mr-2" />}
+              Gerar com IA
+            </Button>
+          )}
           <span className="text-sm text-muted-foreground">
             {currentSlide + 1} / {slides.length}
           </span>
