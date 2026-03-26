@@ -13,7 +13,6 @@ export default function DashboardSlide({ plan, companies, companyTiers, template
       {/* Cover Section */}
       <div className="flex items-center justify-between mb-8">
         <div>
-          <p className="text-primary text-sm tracking-[0.3em] font-medium mb-1">ORION RECRUITMENT</p>
           <h1 className="text-3xl font-bold text-foreground mb-1">Plano Estratégico</h1>
           <p className="text-muted-foreground">de Recolocação Profissional</p>
         </div>
