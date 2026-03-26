@@ -284,13 +284,41 @@ Seja específico e personalizado para o perfil do candidato.` },
   ], tools, { type: "function", function: { name: "generate_diagnosis" } });
 }
 
+function getErrorMessage(error: unknown) {
+  if (error instanceof Error) return error.message;
+  if (typeof error === "string") return error;
+
+  if (error && typeof error === "object") {
+    const maybeError = error as { message?: string; details?: string; code?: string };
+    const parts = [maybeError.message, maybeError.details].filter(Boolean);
+
+    if (parts.length > 0) return parts.join(" — ");
+    if (maybeError.code) return `Database error (${maybeError.code})`;
+  }
+
+  return "Unknown error";
+}
+
 serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
 
   try {
     const authHeader = req.headers.get("authorization");
-    const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
-    const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+    const supabaseUrl = Deno.env.get("SUPABASE_URL");
+    const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
+
+    if (!supabaseUrl || !supabaseKey) {
+      console.error("Missing edge function environment variables", {
+        hasSupabaseUrl: !!supabaseUrl,
+        hasServiceRoleKey: !!supabaseKey,
+      });
+
+      return new Response(JSON.stringify({ error: "Server configuration error" }), {
+        status: 500,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
     const supabase = createClient(supabaseUrl, supabaseKey);
 
     const token = authHeader?.replace("Bearer ", "");
@@ -424,7 +452,7 @@ serve(async (req) => {
     });
   } catch (e) {
     console.error("generate-plan error:", e);
-    const message = e instanceof Error ? e.message : "Unknown error";
+    const message = getErrorMessage(e);
 
     if (message === "RATE_LIMITED") {
       return new Response(JSON.stringify({ error: "IA temporariamente indisponível. Tente novamente." }), {
