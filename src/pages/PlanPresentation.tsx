@@ -138,21 +138,35 @@ export default function PlanPresentation() {
     );
   }
 
+  const renderGenerating = () => (
+    <div className="h-full flex flex-col items-center justify-center p-12">
+      <Loader2 className="w-14 h-14 text-primary animate-spin mb-5" />
+      <h2 className="text-xl font-bold text-foreground mb-2">Gerando plano com IA...</h2>
+      <p className="text-muted-foreground text-center max-w-md text-sm">
+        Estamos analisando o perfil e gerando empresas, mensagens, cronograma e muito mais. Isso pode levar alguns segundos.
+      </p>
+    </div>
+  );
+
   const renderNotReady = (section: string) => (
     <div className="h-full flex flex-col items-center justify-center p-12">
       <Clock className="w-14 h-14 text-muted-foreground mb-5" />
       <h2 className="text-xl font-bold text-foreground mb-2">{section} em preparação</h2>
       <p className="text-muted-foreground text-center max-w-md text-sm mb-6">
-        Esta seção será gerada automaticamente com IA.
+        Gere o plano completo na aba Capa para preencher todas as seções.
       </p>
-      <Button onClick={() => handleGenerate("all")} disabled={generating}>
+      <Button onClick={() => { setCurrentSlide(0); handleGenerate("all"); }} disabled={generating}>
         {generating ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Wand2 className="w-4 h-4 mr-2" />}
         Gerar Plano Completo com IA
       </Button>
     </div>
   );
 
+  const linkedinGoals = plan.linkedin_goals as any;
+
   const renderSlide = () => {
+    if (generating) return renderGenerating();
+
     const slide = slides[currentSlide];
     switch (slide.id) {
       case "cover":
@@ -180,6 +194,12 @@ export default function PlanPresentation() {
                 {generating ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Wand2 className="w-4 h-4 mr-2" />}
                 Gerar Plano Completo com IA
               </Button>
+            )}
+            {hasAIContent && (
+              <div className="mt-6 flex items-center gap-2 text-sm text-primary">
+                <CheckCircle2 className="w-4 h-4" />
+                <span>Plano gerado — navegue pelas abas para ver o conteúdo</span>
+              </div>
             )}
           </div>
         );
@@ -239,6 +259,7 @@ export default function PlanPresentation() {
           B: "Empresas médias consolidadas — oportunidades sólidas",
           C: "Empresas menores estratégicas — portas de entrada",
         };
+        if (tierCompanies.length === 0) return renderNotReady("Empresas Tier " + tier);
         return (
           <div className="p-8">
             <div className="flex items-center gap-3 mb-6">
@@ -248,25 +269,89 @@ export default function PlanPresentation() {
               <h2 className="text-2xl font-bold text-foreground">Mapeamento de Empresas</h2>
             </div>
             <p className="text-muted-foreground mb-6">{tierDescriptions[tier]}</p>
-            {tierCompanies.length === 0 ? renderNotReady("Empresas Tier " + tier) : (
-              <div className="grid gap-3">
-                {tierCompanies.map((company) => (
-                  <div key={company.id} className="bg-card border border-border rounded-lg p-4 flex items-center justify-between">
-                    <div>
-                      <h3 className="text-foreground font-semibold">{company.name}</h3>
-                      <p className="text-muted-foreground text-sm">{company.segment}</p>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      {company.has_openings && <Badge variant="outline" className="text-primary border-primary/30">Vagas abertas</Badge>}
-                      <Badge variant="secondary">{company.relevance_score}%</Badge>
-                    </div>
+            <div className="grid gap-3">
+              {tierCompanies.map((company) => (
+                <div key={company.id} className="bg-card border border-border rounded-lg p-4 flex items-center justify-between">
+                  <div>
+                    <h3 className="text-foreground font-semibold">{company.name}</h3>
+                    <p className="text-muted-foreground text-sm">{company.segment}</p>
                   </div>
-                ))}
-              </div>
-            )}
+                  <div className="flex items-center gap-2">
+                    {company.has_openings && <Badge variant="outline" className="text-primary border-primary/30">Vagas abertas</Badge>}
+                    <Badge variant="secondary">{company.relevance_score}%</Badge>
+                  </div>
+                </div>
+              ))}
+            </div>
           </div>
         );
       }
+
+      case "funnel": {
+        const stages = [
+          { key: "identified", label: "Identificadas", color: "bg-muted" },
+          { key: "connection_sent", label: "Conexão Enviada", color: "bg-blue-600/20" },
+          { key: "connected", label: "Conectado", color: "bg-primary/20" },
+          { key: "message_sent", label: "Mensagem Enviada", color: "bg-yellow-600/20" },
+          { key: "replied", label: "Respondeu", color: "bg-green-600/20" },
+        ];
+        if (companies.length === 0) return renderNotReady("Funil");
+        return (
+          <div className="p-8">
+            <h2 className="text-2xl font-bold text-foreground mb-6">Funil de Prospecção</h2>
+            <div className="space-y-4">
+              {stages.map(stage => {
+                const stageCompanies = companies.filter(c => c.kanban_stage === stage.key);
+                return (
+                  <div key={stage.key} className={`${stage.color} rounded-lg p-4 border border-border`}>
+                    <div className="flex items-center justify-between mb-3">
+                      <h3 className="text-foreground font-semibold">{stage.label}</h3>
+                      <Badge variant="secondary">{stageCompanies.length}</Badge>
+                    </div>
+                    {stageCompanies.length > 0 ? (
+                      <div className="flex flex-wrap gap-2">
+                        {stageCompanies.map(c => (
+                          <Badge key={c.id} variant="outline" className="text-foreground">{c.name}</Badge>
+                        ))}
+                      </div>
+                    ) : (
+                      <p className="text-muted-foreground text-sm">Nenhuma empresa neste estágio</p>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        );
+      }
+
+      case "steps":
+        return (
+          <div className="p-8">
+            <h2 className="text-2xl font-bold text-foreground mb-6">Passo a Passo da Estratégia</h2>
+            <div className="space-y-4">
+              {[
+                { step: 1, title: "Otimizar Perfil LinkedIn", desc: "Foto profissional, headline estratégica, resumo com palavras-chave" },
+                { step: 2, title: "Mapeamento de Empresas", desc: `${companies.length} empresas mapeadas em 3 tiers de prioridade` },
+                { step: 3, title: "Enviar Conexões Diárias", desc: `Meta: ${linkedinGoals?.connectionsPerDay || 50} conexões/dia para profissionais da área e RH` },
+                { step: 4, title: "Mensagens Personalizadas", desc: `${templates.length} templates prontos para RH e decisores` },
+                { step: 5, title: "Produção de Conteúdo", desc: `Meta: ${linkedinGoals?.postsPerWeek || 1} posts/semana sobre a área de atuação` },
+                { step: 6, title: "Acompanhar Cronograma", desc: "Seguir o plano semanal de 4 semanas com atividades diárias" },
+                { step: 7, title: "Medir Resultados", desc: "Acompanhar KPIs semanais e ajustar estratégia conforme necessário" },
+              ].map(item => (
+                <div key={item.step} className="bg-card border border-border rounded-lg p-4 flex items-start gap-4">
+                  <div className="w-8 h-8 rounded-full bg-primary/20 flex items-center justify-center shrink-0">
+                    <span className="text-primary font-bold text-sm">{item.step}</span>
+                  </div>
+                  <div>
+                    <h3 className="text-foreground font-semibold">{item.title}</h3>
+                    <p className="text-muted-foreground text-sm">{item.desc}</p>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        );
 
       case "messages":
         if (templates.length === 0) return renderNotReady("Mensagens");
@@ -278,6 +363,38 @@ export default function PlanPresentation() {
                 <div key={t.id} className="bg-card border border-border rounded-lg p-6">
                   <Badge className="mb-3">{t.type === "hr" ? "Para RH" : "Para Decisor"}</Badge>
                   <p className="text-foreground whitespace-pre-wrap text-sm">{t.template}</p>
+                </div>
+              ))}
+            </div>
+          </div>
+        );
+
+      case "content":
+        return (
+          <div className="p-8">
+            <h2 className="text-2xl font-bold text-foreground mb-6">Estratégia de Conteúdo LinkedIn</h2>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+              <div className="bg-card border border-border rounded-lg p-4">
+                <p className="text-muted-foreground text-sm">Meta Semanal</p>
+                <p className="text-foreground font-bold text-2xl">{linkedinGoals?.postsPerWeek || 1} posts</p>
+              </div>
+              <div className="bg-card border border-border rounded-lg p-4">
+                <p className="text-muted-foreground text-sm">Conexões/Dia</p>
+                <p className="text-foreground font-bold text-2xl">{linkedinGoals?.connectionsPerDay || 50}</p>
+              </div>
+            </div>
+            <h3 className="text-lg font-semibold text-foreground mb-3">Ideias de Conteúdo</h3>
+            <div className="space-y-3">
+              {[
+                `Compartilhe um aprendizado da sua experiência como ${plan.current_position}`,
+                `Comente sobre tendências em ${plan.current_area}`,
+                "Publique um case de sucesso ou projeto relevante",
+                "Faça uma reflexão sobre liderança ou trabalho em equipe",
+                "Compartilhe um artigo relevante com sua análise pessoal",
+              ].map((idea, i) => (
+                <div key={i} className="bg-card border border-border rounded-lg p-3 flex items-center gap-3">
+                  <Sparkles className="w-4 h-4 text-primary shrink-0" />
+                  <p className="text-foreground text-sm">{idea}</p>
                 </div>
               ))}
             </div>
@@ -311,6 +428,100 @@ export default function PlanPresentation() {
                 </div>
               ))}
             </div>
+          </div>
+        );
+
+      case "kpis":
+        return (
+          <div className="p-8">
+            <h2 className="text-2xl font-bold text-foreground mb-6">KPIs & Métricas</h2>
+            <div className="grid grid-cols-2 md:grid-cols-3 gap-4 mb-6">
+              <div className="bg-card border border-border rounded-lg p-4 text-center">
+                <p className="text-3xl font-bold text-primary">{companies.length}</p>
+                <p className="text-muted-foreground text-sm">Empresas Mapeadas</p>
+              </div>
+              <div className="bg-card border border-border rounded-lg p-4 text-center">
+                <p className="text-3xl font-bold text-primary">{companies.filter(c => c.has_openings).length}</p>
+                <p className="text-muted-foreground text-sm">Com Vagas Abertas</p>
+              </div>
+              <div className="bg-card border border-border rounded-lg p-4 text-center">
+                <p className="text-3xl font-bold text-primary">{templates.length}</p>
+                <p className="text-muted-foreground text-sm">Templates Prontos</p>
+              </div>
+              <div className="bg-card border border-border rounded-lg p-4 text-center">
+                <p className="text-3xl font-bold text-primary">{jobTitles.length}</p>
+                <p className="text-muted-foreground text-sm">Variações de Cargo</p>
+              </div>
+              <div className="bg-card border border-border rounded-lg p-4 text-center">
+                <p className="text-3xl font-bold text-primary">{schedule.filter(a => a.is_completed).length}/{schedule.length}</p>
+                <p className="text-muted-foreground text-sm">Atividades Concluídas</p>
+              </div>
+              <div className="bg-card border border-border rounded-lg p-4 text-center">
+                <p className="text-3xl font-bold text-primary">{linkedinGoals?.connectionsPerDay || 50}/dia</p>
+                <p className="text-muted-foreground text-sm">Meta de Conexões</p>
+              </div>
+            </div>
+            <h3 className="text-lg font-semibold text-foreground mb-3">Distribuição por Tier</h3>
+            <div className="grid grid-cols-3 gap-4">
+              {(["A", "B", "C"] as const).map(tier => (
+                <div key={tier} className="bg-card border border-border rounded-lg p-4 text-center">
+                  <Badge className={tier === "A" ? "bg-yellow-600 mb-2" : tier === "B" ? "bg-blue-600 mb-2" : "bg-green-600 mb-2"}>
+                    Tier {tier}
+                  </Badge>
+                  <p className="text-2xl font-bold text-foreground">{companyTiers[tier].length}</p>
+                </div>
+              ))}
+            </div>
+          </div>
+        );
+
+      case "mapping":
+        return (
+          <div className="p-8">
+            <h2 className="text-2xl font-bold text-foreground mb-6">Mapeamento Geral</h2>
+            {companies.length === 0 ? renderNotReady("Mapeamento") : (
+              <>
+                <div className="bg-card border border-border rounded-lg p-4 mb-6">
+                  <p className="text-muted-foreground text-sm mb-2">Resumo do Plano</p>
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                    <div>
+                      <p className="text-foreground font-bold text-lg">{plan.mentee_name}</p>
+                      <p className="text-muted-foreground text-xs">Mentorado</p>
+                    </div>
+                    <div>
+                      <p className="text-foreground font-bold text-lg">{companies.length}</p>
+                      <p className="text-muted-foreground text-xs">Empresas</p>
+                    </div>
+                    <div>
+                      <p className="text-foreground font-bold text-lg">{schedule.length}</p>
+                      <p className="text-muted-foreground text-xs">Atividades</p>
+                    </div>
+                    <div>
+                      <p className="text-foreground font-bold text-lg">{templates.length}</p>
+                      <p className="text-muted-foreground text-xs">Mensagens</p>
+                    </div>
+                  </div>
+                </div>
+                <h3 className="text-lg font-semibold text-foreground mb-3">Todas as Empresas</h3>
+                <div className="grid gap-2">
+                  {companies.map(c => (
+                    <div key={c.id} className="bg-card border border-border rounded-lg p-3 flex items-center justify-between">
+                      <div className="flex items-center gap-3">
+                        <Badge variant="outline">{c.tier}</Badge>
+                        <div>
+                          <p className="text-foreground font-medium text-sm">{c.name}</p>
+                          <p className="text-muted-foreground text-xs">{c.segment}</p>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <Badge variant="secondary" className="text-xs">{c.kanban_stage}</Badge>
+                        <Badge variant="outline" className="text-xs">{c.relevance_score}%</Badge>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </>
+            )}
           </div>
         );
 
