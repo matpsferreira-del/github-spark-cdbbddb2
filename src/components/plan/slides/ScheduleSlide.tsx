@@ -21,14 +21,15 @@ export default function ScheduleSlide({ plan, schedule, generating, onGenerate, 
   const monthGoals = data.month_goals;
   const completedCount = schedule.filter(a => a.is_completed).length;
 
-  const toggleActivity = async (id: string, currentState: boolean) => {
+  const toggleActivity = async (activityId: string, checked: boolean | "indeterminate") => {
+    const newState = checked === true;
     const { error } = await supabase
       .from("schedule_activities")
       .update({
-        is_completed: !currentState,
-        completed_at: !currentState ? new Date().toISOString() : null,
+        is_completed: newState,
+        completed_at: newState ? new Date().toISOString() : null,
       })
-      .eq("id", id);
+      .eq("id", activityId);
 
     if (error) toast.error("Erro ao atualizar atividade");
     else onRefreshData();

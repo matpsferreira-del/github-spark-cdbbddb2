@@ -14,7 +14,7 @@ import { toast } from "sonner";
 import type { MentorshipPlan, Company, MessageTemplate, ScheduleActivity, JobTitleVariation, ContactMapping } from "@/types/mentorship";
 import type { PlanSlideProps } from "@/components/plan/types";
 
-import CoverSlide from "@/components/plan/slides/CoverSlide";
+import DashboardSlide from "@/components/plan/slides/DashboardSlide";
 import DiagnosisSlide from "@/components/plan/slides/DiagnosisSlide";
 import CompanyTierSlide from "@/components/plan/slides/CompanyTierSlide";
 import JobTitlesSlide from "@/components/plan/slides/JobTitlesSlide";
@@ -24,12 +24,11 @@ import StepsSlide from "@/components/plan/slides/StepsSlide";
 import MessagesSlide from "@/components/plan/slides/MessagesSlide";
 import ContentSlide from "@/components/plan/slides/ContentSlide";
 import ScheduleSlide from "@/components/plan/slides/ScheduleSlide";
-import KpisSlide from "@/components/plan/slides/KpisSlide";
 import MappingSlide from "@/components/plan/slides/MappingSlide";
 import DocumentsSlide from "@/components/plan/slides/DocumentsSlide";
 
 const slides = [
-  { id: "cover", title: "Capa", icon: Briefcase },
+  { id: "dashboard", title: "Dashboard", icon: BarChart3 },
   { id: "diagnosis", title: "Diagnóstico", icon: Search },
   { id: "companies-a", title: "Tier A", icon: Building2 },
   { id: "companies-b", title: "Tier B", icon: Building2 },
@@ -41,7 +40,6 @@ const slides = [
   { id: "messages", title: "Mensagens", icon: MessageSquare },
   { id: "content", title: "Conteúdo", icon: Sparkles },
   { id: "schedule", title: "Cronograma", icon: Calendar },
-  { id: "kpis", title: "KPIs", icon: BarChart3 },
   { id: "mapping", title: "Mapeamento", icon: MapPin },
   { id: "documents", title: "Documentos", icon: FileText },
 ];
@@ -172,7 +170,7 @@ export default function PlanPresentation() {
   };
 
   const renderSlide = () => {
-    if (generating && slides[currentSlide].id === "cover") {
+    if (generating && slides[currentSlide].id === "dashboard") {
       return (
         <div className="h-full flex flex-col items-center justify-center p-12">
           <Loader2 className="w-14 h-14 text-primary animate-spin mb-5" />
@@ -186,7 +184,7 @@ export default function PlanPresentation() {
 
     const slide = slides[currentSlide];
     switch (slide.id) {
-      case "cover": return <CoverSlide {...slideProps} />;
+      case "dashboard": return <DashboardSlide {...slideProps} />;
       case "diagnosis": return <DiagnosisSlide {...slideProps} />;
       case "companies-a": return <CompanyTierSlide tier="A" companies={companyTiers.A} />;
       case "companies-b": return <CompanyTierSlide tier="B" companies={companyTiers.B} />;
@@ -198,7 +196,6 @@ export default function PlanPresentation() {
       case "messages": return <MessagesSlide {...slideProps} />;
       case "content": return <ContentSlide {...slideProps} />;
       case "schedule": return <ScheduleSlide {...slideProps} />;
-      case "kpis": return <KpisSlide {...slideProps} />;
       case "mapping": return <MappingSlide {...slideProps} />;
       case "documents": return <DocumentsSlide {...slideProps} />;
       default: return null;
