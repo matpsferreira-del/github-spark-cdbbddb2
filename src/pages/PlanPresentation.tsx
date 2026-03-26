@@ -328,6 +328,12 @@ export default function PlanPresentation() {
           Voltar
         </Button>
         <div className="flex items-center gap-2">
+          {!hasAIContent && (
+            <Button onClick={() => handleGenerate("all")} disabled={generating} size="sm" variant="default">
+              {generating ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Wand2 className="w-4 h-4 mr-2" />}
+              Gerar com IA
+            </Button>
+          )}
           <span className="text-sm text-muted-foreground">
             {currentSlide + 1} / {slides.length}
           </span>
