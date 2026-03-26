@@ -33,7 +33,8 @@ export default function PlanPresentation() {
   const navigate = useNavigate();
   const { user } = useAuth();
   const [currentSlide, setCurrentSlide] = useState(0);
-
+  const [generating, setGenerating] = useState(false);
+  const queryClient = useQueryClient();
   const { data: plan, isLoading } = useQuery({
     queryKey: ["plan", id],
     queryFn: async () => {
