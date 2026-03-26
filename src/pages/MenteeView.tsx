@@ -33,20 +33,27 @@ export default function MenteeView() {
   const { data: accessData, isLoading, error } = useQuery({
     queryKey: ["mentee-access", token],
     queryFn: async () => {
-      // Get plan via access token
       const { data: tokenData, error: tokenError } = await supabase
         .from("plan_access_tokens")
-        .select("*, mentorship_plans(*)")
+        .select("*")
         .eq("token", token!)
         .eq("is_active", true)
         .single();
       if (tokenError) throw tokenError;
-      return tokenData;
+
+      const { data: planData, error: planError } = await supabase
+        .from("mentorship_plans")
+        .select("*")
+        .eq("id", tokenData.plan_id)
+        .single();
+      if (planError) throw planError;
+
+      return { token: tokenData, plan: planData };
     },
     enabled: !!token,
   });
 
-  const plan = accessData?.mentorship_plans as MentorshipPlan | undefined;
+  const plan = accessData?.plan as MentorshipPlan | undefined;
 
   const { data: companies = [] } = useQuery({
     queryKey: ["mentee-companies", plan?.id],
