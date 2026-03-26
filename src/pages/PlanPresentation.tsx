@@ -7,7 +7,7 @@ import {
   Loader2, ArrowLeft, Briefcase, Building2, MessageSquare,
   Sparkles, Calendar, Search, TrendingUp, CheckCircle2, BarChart3,
   MapPin, Target, FileText, Linkedin, RefreshCw, Link2, Download,
-  FileSpreadsheet, Wand2
+  FileSpreadsheet, Copy, Check
 } from "lucide-react";
 import { useState, useMemo } from "react";
 import { toast } from "sonner";
@@ -17,6 +17,7 @@ import type { PlanSlideProps } from "@/components/plan/types";
 import DashboardSlide from "@/components/plan/slides/DashboardSlide";
 import DiagnosisSlide from "@/components/plan/slides/DiagnosisSlide";
 import CompanyTierSlide from "@/components/plan/slides/CompanyTierSlide";
+import CompanyDetailSlide from "@/components/plan/slides/CompanyDetailSlide";
 import JobTitlesSlide from "@/components/plan/slides/JobTitlesSlide";
 import LinkedInProfileSlide from "@/components/plan/slides/LinkedInProfileSlide";
 import FunnelSlide from "@/components/plan/slides/FunnelSlide";
@@ -50,6 +51,8 @@ export default function PlanPresentation() {
   const { user } = useAuth();
   const [currentSlide, setCurrentSlide] = useState(0);
   const [generating, setGenerating] = useState(false);
+  const [selectedCompany, setSelectedCompany] = useState<Company | null>(null);
+  const [linkCopied, setLinkCopied] = useState(false);
   const queryClient = useQueryClient();
 
   const { data: plan, isLoading } = useQuery({
@@ -145,6 +148,40 @@ export default function PlanPresentation() {
     }
   };
 
+  const handleGenerateLink = async () => {
+    if (!plan) return;
+    try {
+      // Check if token already exists
+      const { data: existing } = await supabase
+        .from("plan_access_tokens")
+        .select("token")
+        .eq("plan_id", plan.id)
+        .eq("is_active", true)
+        .maybeSingle();
+
+      let token: string;
+      if (existing?.token) {
+        token = existing.token;
+      } else {
+        token = crypto.randomUUID();
+        const { error } = await supabase.from("plan_access_tokens").insert({
+          plan_id: plan.id,
+          token,
+          mentee_name: plan.mentee_name,
+        });
+        if (error) throw error;
+      }
+
+      const link = `${window.location.origin}/mentee/${token}`;
+      await navigator.clipboard.writeText(link);
+      setLinkCopied(true);
+      toast.success("Link copiado para a área de transferência!");
+      setTimeout(() => setLinkCopied(false), 3000);
+    } catch (error: any) {
+      toast.error(error.message || "Erro ao gerar link");
+    }
+  };
+
   if (isLoading) {
     return (
       <div className="min-h-screen gradient-dark-bg flex items-center justify-center">
@@ -182,13 +219,25 @@ export default function PlanPresentation() {
       );
     }
 
+    // Company detail view
+    if (selectedCompany) {
+      return (
+        <CompanyDetailSlide
+          company={selectedCompany}
+          contacts={contacts}
+          onBack={() => setSelectedCompany(null)}
+          onRefreshData={refreshData}
+        />
+      );
+    }
+
     const slide = slides[currentSlide];
     switch (slide.id) {
       case "dashboard": return <DashboardSlide {...slideProps} />;
       case "diagnosis": return <DiagnosisSlide {...slideProps} />;
-      case "companies-a": return <CompanyTierSlide tier="A" companies={companyTiers.A} />;
-      case "companies-b": return <CompanyTierSlide tier="B" companies={companyTiers.B} />;
-      case "companies-c": return <CompanyTierSlide tier="C" companies={companyTiers.C} />;
+      case "companies-a": return <CompanyTierSlide tier="A" companies={companyTiers.A} onSelectCompany={setSelectedCompany} />;
+      case "companies-b": return <CompanyTierSlide tier="B" companies={companyTiers.B} onSelectCompany={setSelectedCompany} />;
+      case "companies-c": return <CompanyTierSlide tier="C" companies={companyTiers.C} onSelectCompany={setSelectedCompany} />;
       case "jobs": return <JobTitlesSlide {...slideProps} />;
       case "linkedin-profile": return <LinkedInProfileSlide {...slideProps} />;
       case "funnel": return <FunnelSlide {...slideProps} />;
@@ -230,8 +279,9 @@ export default function PlanPresentation() {
               <RefreshCw className="w-4 h-4 mr-1" /> Regenerar
             </Button>
           )}
-          <Button variant="ghost" size="sm">
-            <Link2 className="w-4 h-4 mr-1" /> Link Mentorado
+          <Button variant="ghost" size="sm" onClick={handleGenerateLink}>
+            {linkCopied ? <Check className="w-4 h-4 mr-1 text-green-500" /> : <Link2 className="w-4 h-4 mr-1" />}
+            {linkCopied ? "Copiado!" : "Link Mentorado"}
           </Button>
           <Button variant="ghost" size="sm">
             <Download className="w-4 h-4 mr-1" /> PDF
@@ -251,7 +301,7 @@ export default function PlanPresentation() {
             return (
               <button
                 key={slide.id}
-                onClick={() => setCurrentSlide(idx)}
+                onClick={() => { setCurrentSlide(idx); setSelectedCompany(null); }}
                 className={`w-full flex items-center gap-2 px-3 py-2 rounded-lg text-sm transition-colors ${
                   idx === currentSlide
                     ? "bg-primary/10 text-primary border-l-2 border-primary"
