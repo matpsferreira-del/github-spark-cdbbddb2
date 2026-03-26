@@ -175,6 +175,57 @@ export default function PlanPresentation() {
                 <span>{plan.city}, {plan.state}</span>
               </div>
             </div>
+            {!hasAIContent && (
+              <Button onClick={() => handleGenerate("all")} disabled={generating} className="mt-8" size="lg">
+                {generating ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Wand2 className="w-4 h-4 mr-2" />}
+                Gerar Plano Completo com IA
+              </Button>
+            )}
+          </div>
+        );
+
+      case "diagnosis":
+        return (
+          <div className="p-8">
+            <h2 className="text-2xl font-bold text-foreground mb-6">Diagnóstico do Perfil</h2>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="bg-card border border-border rounded-lg p-4">
+                <p className="text-muted-foreground text-sm">Cargo Atual</p>
+                <p className="text-foreground font-semibold">{plan.current_position}</p>
+              </div>
+              <div className="bg-card border border-border rounded-lg p-4">
+                <p className="text-muted-foreground text-sm">Área</p>
+                <p className="text-foreground font-semibold">{plan.current_area}</p>
+              </div>
+              <div className="bg-card border border-border rounded-lg p-4">
+                <p className="text-muted-foreground text-sm">Situação</p>
+                <p className="text-foreground font-semibold">{plan.current_situation === "employed" ? "Empregado" : "Desempregado"}</p>
+              </div>
+              <div className="bg-card border border-border rounded-lg p-4">
+                <p className="text-muted-foreground text-sm">Modelo</p>
+                <p className="text-foreground font-semibold capitalize">{plan.work_model}</p>
+              </div>
+              <div className="bg-card border border-border rounded-lg p-4">
+                <p className="text-muted-foreground text-sm">Localização</p>
+                <p className="text-foreground font-semibold">{plan.city}, {plan.state}</p>
+              </div>
+              <div className="bg-card border border-border rounded-lg p-4">
+                <p className="text-muted-foreground text-sm">Mudança de Carreira</p>
+                <p className="text-foreground font-semibold">{plan.wants_career_change ? "Sim" : "Não"}</p>
+              </div>
+            </div>
+            {jobTitles.length > 0 && (
+              <div className="mt-6">
+                <h3 className="text-lg font-semibold text-foreground mb-3">Variações de Cargo (LinkedIn)</h3>
+                <div className="flex flex-wrap gap-2">
+                  {jobTitles.map(jt => (
+                    <Badge key={jt.id} variant={jt.type === "target_position" ? "default" : "secondary"}>
+                      {jt.title}
+                    </Badge>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
         );
 
@@ -197,9 +248,7 @@ export default function PlanPresentation() {
               <h2 className="text-2xl font-bold text-foreground">Mapeamento de Empresas</h2>
             </div>
             <p className="text-muted-foreground mb-6">{tierDescriptions[tier]}</p>
-            {tierCompanies.length === 0 ? (
-              <p className="text-muted-foreground text-center py-8">Nenhuma empresa mapeada neste tier ainda.</p>
-            ) : (
+            {tierCompanies.length === 0 ? renderNotReady("Empresas Tier " + tier) : (
               <div className="grid gap-3">
                 {tierCompanies.map((company) => (
                   <div key={company.id} className="bg-card border border-border rounded-lg p-4 flex items-center justify-between">
@@ -208,8 +257,8 @@ export default function PlanPresentation() {
                       <p className="text-muted-foreground text-sm">{company.segment}</p>
                     </div>
                     <div className="flex items-center gap-2">
-                      {company.has_openings && <Badge variant="outline" className="text-green-400 border-green-400/30">Vagas abertas</Badge>}
-                      <Badge variant="secondary">{company.kanban_stage}</Badge>
+                      {company.has_openings && <Badge variant="outline" className="text-primary border-primary/30">Vagas abertas</Badge>}
+                      <Badge variant="secondary">{company.relevance_score}%</Badge>
                     </div>
                   </div>
                 ))}
@@ -218,6 +267,52 @@ export default function PlanPresentation() {
           </div>
         );
       }
+
+      case "messages":
+        if (templates.length === 0) return renderNotReady("Mensagens");
+        return (
+          <div className="p-8">
+            <h2 className="text-2xl font-bold text-foreground mb-6">Templates de Mensagens</h2>
+            <div className="space-y-6">
+              {templates.map(t => (
+                <div key={t.id} className="bg-card border border-border rounded-lg p-6">
+                  <Badge className="mb-3">{t.type === "hr" ? "Para RH" : "Para Decisor"}</Badge>
+                  <p className="text-foreground whitespace-pre-wrap text-sm">{t.template}</p>
+                </div>
+              ))}
+            </div>
+          </div>
+        );
+
+      case "schedule":
+        if (schedule.length === 0) return renderNotReady("Cronograma");
+        const weeks = [1, 2, 3, 4];
+        const days = ["monday", "tuesday", "wednesday", "thursday", "friday"];
+        const dayLabels: Record<string, string> = { monday: "Seg", tuesday: "Ter", wednesday: "Qua", thursday: "Qui", friday: "Sex" };
+        return (
+          <div className="p-8">
+            <h2 className="text-2xl font-bold text-foreground mb-6">Cronograma Semanal</h2>
+            <div className="space-y-6">
+              {weeks.map(week => (
+                <div key={week}>
+                  <h3 className="text-lg font-semibold text-primary mb-3">Semana {week}</h3>
+                  <div className="grid grid-cols-5 gap-2">
+                    {days.map(day => {
+                      const activity = schedule.find(a => a.week_number === week && a.day_of_week === day);
+                      return (
+                        <div key={day} className="bg-card border border-border rounded-lg p-3">
+                          <p className="text-muted-foreground text-xs font-semibold mb-1">{dayLabels[day]}</p>
+                          <p className="text-foreground text-xs">{activity?.activity || "—"}</p>
+                          {activity && <Badge variant="outline" className="mt-1 text-xs">{activity.category}</Badge>}
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        );
 
       default:
         return renderNotReady(slide.title);
