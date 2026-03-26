@@ -41,7 +41,7 @@ export type JobTitleVariation = {
   id: string;
   plan_id: string;
   title: string;
-  type: "current_variation" | "target_position";
+  type: "current_variation" | "target_position" | "search_variation" | "decision_maker" | "hr_recruiter";
   is_ai_generated: boolean;
   created_at: string;
 };

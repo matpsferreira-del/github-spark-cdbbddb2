@@ -3,8 +3,8 @@ import { Wand2, Search, Crown, Star, Loader2 } from "lucide-react";
 import type { PlanSlideProps } from "../types";
 
 export default function JobTitlesSlide({ plan, jobTitles, generating, onGenerate }: PlanSlideProps) {
-  const searchVariations = jobTitles.filter(j => j.type === "current_variation" || j.type === "search_variation");
-  const decisionMakers = jobTitles.filter(j => j.type === "target_position" || j.type === "decision_maker");
+  const searchVariations = jobTitles.filter(j => ["current_variation", "search_variation"].includes(j.type));
+  const decisionMakers = jobTitles.filter(j => ["target_position", "decision_maker"].includes(j.type));
   const hrRecruiters = jobTitles.filter(j => j.type === "hr_recruiter");
 
   // Parse "Title|||Description" format
