@@ -1,7 +1,6 @@
 import { useState } from "react";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
-import { ChevronLeft, ChevronRight, Building2, Briefcase } from "lucide-react";
+import { Building2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import type { PlanSlideProps } from "../types";
@@ -13,9 +12,9 @@ import {
   PointerSensor,
   useSensor,
   useSensors,
+  useDroppable,
   type DragStartEvent,
   type DragEndEvent,
-  type DragOverEvent,
 } from "@dnd-kit/core";
 import { SortableContext, verticalListSortingStrategy, useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
@@ -80,17 +79,13 @@ function CompanyCard({ company, isOverlay }: { company: Company; isOverlay?: boo
         </Badge>
       </div>
       <p className="text-muted-foreground text-xs truncate">{company.segment}</p>
-      {company.has_openings && (
-        <div className="flex items-center gap-1 mt-1.5">
-          <Briefcase className="w-3 h-3 text-green-500" />
-          <span className="text-green-500 text-xs font-medium">Vagas Ativas</span>
-        </div>
-      )}
     </div>
   );
 }
 
 function StageColumn({ stageKey, label, companies }: { stageKey: string; label: string; companies: Company[] }) {
+  const { setNodeRef, isOver } = useDroppable({ id: stageKey });
+
   return (
     <div className="flex-1 min-w-[180px]">
       <div className="flex items-center justify-between mb-3">
@@ -98,7 +93,12 @@ function StageColumn({ stageKey, label, companies }: { stageKey: string; label: 
         <Badge variant="secondary" className="text-xs">{companies.length}</Badge>
       </div>
       <SortableContext items={companies.map(c => c.id)} strategy={verticalListSortingStrategy}>
-        <div className="space-y-2 min-h-[80px] bg-secondary/30 rounded-lg p-2">
+        <div
+          ref={setNodeRef}
+          className={`space-y-2 min-h-[80px] rounded-lg p-2 transition-colors ${
+            isOver ? "bg-primary/10 border border-primary/30" : "bg-secondary/30"
+          }`}
+        >
           {companies.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-8 text-muted-foreground">
               <Building2 className="w-8 h-8 mb-2 opacity-30" />
@@ -145,25 +145,24 @@ export default function FunnelSlide({ companies, onRefreshData }: PlanSlideProps
     const { active, over } = event;
     if (!over) return;
 
-    const activeCompany = companies.find(c => c.id === active.id);
-    if (!activeCompany) return;
+    const draggedCompany = companies.find(c => c.id === active.id);
+    if (!draggedCompany) return;
 
-    // Determine target stage
     let targetStage: string | null = null;
 
-    // Check if dropped over another company
-    const overCompany = companies.find(c => c.id === over.id);
-    if (overCompany) {
-      targetStage = overCompany.kanban_stage;
-    }
-
-    // Check if dropped over a stage column (over.id might be a stage key)
-    if (!targetStage && stages.some(s => s.key === over.id)) {
+    // Check if dropped over a stage column droppable
+    if (stages.some(s => s.key === over.id)) {
       targetStage = over.id as string;
+    } else {
+      // Dropped over another company card
+      const overCompany = companies.find(c => c.id === over.id);
+      if (overCompany) {
+        targetStage = overCompany.kanban_stage;
+      }
     }
 
-    if (targetStage && targetStage !== activeCompany.kanban_stage) {
-      moveCompany(activeCompany.id, targetStage);
+    if (targetStage && targetStage !== draggedCompany.kanban_stage) {
+      moveCompany(draggedCompany.id, targetStage);
     }
   };
 

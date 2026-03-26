@@ -5,9 +5,10 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Plus, X, ExternalLink } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
-import { useState } from "react";
+import { useState, useCallback } from "react";
 import type { PlanSlideProps } from "../types";
-import type { ContactMapping } from "@/types/mentorship";
+import type { Company } from "@/types/mentorship";
+import CompanyMatchDialog from "../CompanyMatchDialog";
 
 const statusLabels: Record<string, string> = {
   identified: "Identificado",
@@ -24,20 +25,47 @@ const typeLabels: Record<string, string> = {
   other: "Outro",
 };
 
-export default function MappingSlide({ plan, contacts, onRefreshData }: PlanSlideProps) {
+function fuzzyMatch(input: string, target: string): boolean {
+  const a = input.toLowerCase().trim();
+  const b = target.toLowerCase().trim();
+  if (a === b) return true;
+  if (a.length < 3) return false;
+  // Check containment
+  if (b.includes(a) || a.includes(b)) return true;
+  // Check similarity (shared words)
+  const wordsA = a.split(/\s+/);
+  const wordsB = b.split(/\s+/);
+  const shared = wordsA.filter(w => w.length > 2 && wordsB.some(wb => wb.includes(w) || w.includes(wb)));
+  return shared.length >= 1 && shared.length / Math.max(wordsA.length, wordsB.length) >= 0.5;
+}
+
+export default function MappingSlide({ plan, contacts, companies, onRefreshData }: PlanSlideProps) {
   const [adding, setAdding] = useState(false);
   const [form, setForm] = useState({ name: "", current_position: "", company: "", type: "decision_maker", tier: "A", linkedin_url: "" });
+  const [matchDialog, setMatchDialog] = useState<{ open: boolean; contactCompany: string; matched: Company | null; pendingForm: typeof form | null }>({
+    open: false, contactCompany: "", matched: null, pendingForm: null,
+  });
 
-  const addContact = async () => {
-    if (!form.name) return toast.error("Nome é obrigatório");
+  const findMatchingCompany = useCallback((companyName: string): Company | null => {
+    if (!companyName.trim()) return null;
+    // Exact match first
+    const exact = companies.find(c => c.name.toLowerCase().trim() === companyName.toLowerCase().trim());
+    if (exact) return exact;
+    // Fuzzy match
+    const fuzzy = companies.find(c => fuzzyMatch(companyName, c.name));
+    return fuzzy || null;
+  }, [companies]);
+
+  const doAddContact = async (formData: typeof form, companyOverride?: string) => {
+    if (!formData.name) return toast.error("Nome é obrigatório");
     const { error } = await supabase.from("contact_mappings").insert({
       plan_id: plan.id,
-      name: form.name,
-      current_position: form.current_position || null,
-      company: form.company || null,
-      type: form.type,
-      tier: form.tier,
-      linkedin_url: form.linkedin_url || null,
+      name: formData.name,
+      current_position: formData.current_position || null,
+      company: companyOverride || formData.company || null,
+      type: formData.type,
+      tier: formData.tier,
+      linkedin_url: formData.linkedin_url || null,
     });
     if (error) toast.error("Erro ao adicionar contato");
     else {
@@ -46,6 +74,35 @@ export default function MappingSlide({ plan, contacts, onRefreshData }: PlanSlid
       setAdding(false);
       onRefreshData();
     }
+  };
+
+  const addContact = async () => {
+    if (!form.name) return toast.error("Nome é obrigatório");
+
+    if (form.company.trim()) {
+      const matched = findMatchingCompany(form.company);
+      if (matched && matched.name.toLowerCase().trim() !== form.company.toLowerCase().trim()) {
+        // Fuzzy match found - ask user
+        setMatchDialog({ open: true, contactCompany: form.company, matched, pendingForm: { ...form } });
+        return;
+      }
+    }
+
+    doAddContact(form);
+  };
+
+  const handleMatchConfirm = () => {
+    if (matchDialog.pendingForm && matchDialog.matched) {
+      doAddContact(matchDialog.pendingForm, matchDialog.matched.name);
+    }
+    setMatchDialog({ open: false, contactCompany: "", matched: null, pendingForm: null });
+  };
+
+  const handleMatchCancel = () => {
+    if (matchDialog.pendingForm) {
+      doAddContact(matchDialog.pendingForm);
+    }
+    setMatchDialog({ open: false, contactCompany: "", matched: null, pendingForm: null });
   };
 
   const deleteContact = async (id: string) => {
@@ -160,6 +217,14 @@ export default function MappingSlide({ plan, contacts, onRefreshData }: PlanSlid
           </tbody>
         </table>
       </div>
+
+      <CompanyMatchDialog
+        open={matchDialog.open}
+        contactCompanyName={matchDialog.contactCompany}
+        matchedCompany={matchDialog.matched}
+        onConfirm={handleMatchConfirm}
+        onCancel={handleMatchCancel}
+      />
     </div>
   );
 }

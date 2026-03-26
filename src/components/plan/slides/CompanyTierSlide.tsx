@@ -1,9 +1,11 @@
 import { Badge } from "@/components/ui/badge";
+import { ChevronRight } from "lucide-react";
 import type { Company } from "@/types/mentorship";
 
 interface Props {
   tier: "A" | "B" | "C";
   companies: Company[];
+  onSelectCompany?: (company: Company) => void;
 }
 
 const tierConfig = {
@@ -24,7 +26,7 @@ const tierConfig = {
   },
 };
 
-export default function CompanyTierSlide({ tier, companies }: Props) {
+export default function CompanyTierSlide({ tier, companies, onSelectCompany }: Props) {
   const config = tierConfig[tier];
 
   if (companies.length === 0) {
@@ -57,12 +59,17 @@ export default function CompanyTierSlide({ tier, companies }: Props) {
 
       <div className="grid grid-cols-2 gap-3">
         {companies.map((company) => (
-          <div key={company.id} className="bg-card border border-border rounded-lg p-4 flex items-center gap-3">
+          <button
+            key={company.id}
+            onClick={() => onSelectCompany?.(company)}
+            className="bg-card border border-border rounded-lg p-4 flex items-center gap-3 text-left hover:border-primary/50 transition-colors group"
+          >
             <div className="flex-1 min-w-0">
               <h3 className="text-foreground font-semibold truncate">{company.name}</h3>
               <p className="text-muted-foreground text-xs truncate">{company.segment}</p>
             </div>
-          </div>
+            <ChevronRight className="w-4 h-4 text-muted-foreground group-hover:text-primary shrink-0" />
+          </button>
         ))}
       </div>
     </div>
