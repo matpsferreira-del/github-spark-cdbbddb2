@@ -3,7 +3,7 @@ import { Badge } from "@/components/ui/badge";
 import { Loader2, Wand2, Building2, CheckCircle2, BarChart3 } from "lucide-react";
 import type { PlanSlideProps } from "../types";
 
-export default function DashboardSlide({ plan, companies, companyTiers, templates, schedule, jobTitles, contacts, generating, hasAIContent, onGenerate }: PlanSlideProps) {
+export default function DashboardSlide({ plan, companies, companyTiers, templates, schedule, jobTitles, contacts, generating, hasAIContent, onGenerate, isMentee }: PlanSlideProps) {
   const date = new Date(plan.created_at).toLocaleDateString("pt-BR", {
     day: "numeric", month: "long", year: "numeric",
   });
@@ -13,7 +13,6 @@ export default function DashboardSlide({ plan, companies, companyTiers, template
       {/* Cover Section */}
       <div className="flex items-center justify-between mb-8">
         <div>
-          <p className="text-primary text-sm tracking-[0.3em] font-medium mb-1">ORION RECRUITMENT</p>
           <h1 className="text-3xl font-bold text-foreground mb-1">Plano Estratégico</h1>
           <p className="text-muted-foreground">de Recolocação Profissional</p>
         </div>
@@ -38,13 +37,13 @@ export default function DashboardSlide({ plan, companies, companyTiers, template
           </div>
           <div className="text-right">
             <p className="text-muted-foreground text-xs">{date}</p>
-            {!hasAIContent && (
+            {!isMentee && !hasAIContent && (
               <Button onClick={() => onGenerate("all")} disabled={generating} className="mt-2" size="sm">
                 {generating ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Wand2 className="w-4 h-4 mr-2" />}
                 Gerar Plano Completo
               </Button>
             )}
-            {hasAIContent && (
+            {!isMentee && hasAIContent && (
               <div className="mt-2 flex items-center gap-1.5 text-xs text-primary">
                 <CheckCircle2 className="w-3.5 h-3.5" />
                 <span>Plano gerado</span>
