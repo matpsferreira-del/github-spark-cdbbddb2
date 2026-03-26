@@ -53,12 +53,39 @@ export default function PlanPresentation() {
   const { data: companies = [] } = useQuery({
     queryKey: ["companies", id],
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from("companies")
-        .select("*")
-        .eq("plan_id", id!);
+      const { data, error } = await supabase.from("companies").select("*").eq("plan_id", id!);
       if (error) throw error;
       return data as Company[];
+    },
+    enabled: !!id,
+  });
+
+  const { data: templates = [] } = useQuery({
+    queryKey: ["templates", id],
+    queryFn: async () => {
+      const { data, error } = await supabase.from("message_templates").select("*").eq("plan_id", id!);
+      if (error) throw error;
+      return data as MessageTemplate[];
+    },
+    enabled: !!id,
+  });
+
+  const { data: schedule = [] } = useQuery({
+    queryKey: ["schedule", id],
+    queryFn: async () => {
+      const { data, error } = await supabase.from("schedule_activities").select("*").eq("plan_id", id!);
+      if (error) throw error;
+      return data as ScheduleActivity[];
+    },
+    enabled: !!id,
+  });
+
+  const { data: jobTitles = [] } = useQuery({
+    queryKey: ["jobTitles", id],
+    queryFn: async () => {
+      const { data, error } = await supabase.from("job_title_variations").select("*").eq("plan_id", id!);
+      if (error) throw error;
+      return data as JobTitleVariation[];
     },
     enabled: !!id,
   });
@@ -68,6 +95,29 @@ export default function PlanPresentation() {
     B: companies.filter(c => c.tier === "B"),
     C: companies.filter(c => c.tier === "C"),
   }), [companies]);
+
+  const hasAIContent = companies.length > 0 || templates.length > 0 || schedule.length > 0 || jobTitles.length > 0;
+
+  const handleGenerate = async (type: string = "all") => {
+    setGenerating(true);
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      const resp = await supabase.functions.invoke("generate-plan", {
+        body: { plan_id: id, type },
+      });
+      if (resp.error) throw resp.error;
+      toast.success("Conteúdo gerado com sucesso pela IA!");
+      queryClient.invalidateQueries({ queryKey: ["companies", id] });
+      queryClient.invalidateQueries({ queryKey: ["templates", id] });
+      queryClient.invalidateQueries({ queryKey: ["schedule", id] });
+      queryClient.invalidateQueries({ queryKey: ["jobTitles", id] });
+      queryClient.invalidateQueries({ queryKey: ["plan", id] });
+    } catch (error: any) {
+      toast.error(error.message || "Erro ao gerar conteúdo");
+    } finally {
+      setGenerating(false);
+    }
+  };
 
   if (isLoading) {
     return (
