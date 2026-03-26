@@ -1,9 +1,25 @@
+import { useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { ChevronLeft, ChevronRight, Plus, Building2 } from "lucide-react";
+import { ChevronLeft, ChevronRight, Building2, Briefcase } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import type { PlanSlideProps } from "../types";
+import {
+  DndContext,
+  DragOverlay,
+  closestCorners,
+  KeyboardSensor,
+  PointerSensor,
+  useSensor,
+  useSensors,
+  type DragStartEvent,
+  type DragEndEvent,
+  type DragOverEvent,
+} from "@dnd-kit/core";
+import { SortableContext, verticalListSortingStrategy, useSortable } from "@dnd-kit/sortable";
+import { CSS } from "@dnd-kit/utilities";
+import type { Company } from "@/types/mentorship";
 
 const stages = [
   { key: "identified", label: "Identificada" },
@@ -19,17 +35,97 @@ const tierColors: Record<string, string> = {
   C: "bg-green-600",
 };
 
-export default function FunnelSlide({ companies, onRefreshData }: PlanSlideProps) {
-  const moveCompany = async (companyId: string, direction: "forward" | "back") => {
-    const company = companies.find(c => c.id === companyId);
-    if (!company) return;
-    const currentIdx = stages.findIndex(s => s.key === company.kanban_stage);
-    const newIdx = direction === "forward" ? currentIdx + 1 : currentIdx - 1;
-    if (newIdx < 0 || newIdx >= stages.length) return;
+function CompanyCard({ company, isOverlay }: { company: Company; isOverlay?: boolean }) {
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    transform,
+    transition,
+    isDragging,
+  } = useSortable({ id: company.id, data: { stage: company.kanban_stage } });
 
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    opacity: isDragging ? 0.3 : 1,
+  };
+
+  if (isOverlay) {
+    return (
+      <div className="bg-card border-2 border-primary rounded-lg p-3 shadow-lg w-[200px]">
+        <div className="flex items-center justify-between mb-1">
+          <h4 className="text-foreground font-semibold text-sm truncate">{company.name}</h4>
+          <Badge className={`${tierColors[company.tier] || "bg-muted"} text-white text-xs px-1.5`}>
+            T{company.tier}
+          </Badge>
+        </div>
+        <p className="text-muted-foreground text-xs truncate">{company.segment}</p>
+      </div>
+    );
+  }
+
+  return (
+    <div
+      ref={setNodeRef}
+      style={style}
+      {...attributes}
+      {...listeners}
+      className="bg-card border border-border rounded-lg p-3 cursor-grab active:cursor-grabbing hover:border-primary/50 transition-colors"
+    >
+      <div className="flex items-center justify-between mb-1">
+        <h4 className="text-foreground font-semibold text-sm truncate">{company.name}</h4>
+        <Badge className={`${tierColors[company.tier] || "bg-muted"} text-white text-xs px-1.5`}>
+          T{company.tier}
+        </Badge>
+      </div>
+      <p className="text-muted-foreground text-xs truncate">{company.segment}</p>
+      {company.has_openings && (
+        <div className="flex items-center gap-1 mt-1.5">
+          <Briefcase className="w-3 h-3 text-green-500" />
+          <span className="text-green-500 text-xs font-medium">Vagas Ativas</span>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function StageColumn({ stageKey, label, companies }: { stageKey: string; label: string; companies: Company[] }) {
+  return (
+    <div className="flex-1 min-w-[180px]">
+      <div className="flex items-center justify-between mb-3">
+        <h3 className="text-foreground font-semibold text-sm">{label}</h3>
+        <Badge variant="secondary" className="text-xs">{companies.length}</Badge>
+      </div>
+      <SortableContext items={companies.map(c => c.id)} strategy={verticalListSortingStrategy}>
+        <div className="space-y-2 min-h-[80px] bg-secondary/30 rounded-lg p-2">
+          {companies.length === 0 ? (
+            <div className="flex flex-col items-center justify-center py-8 text-muted-foreground">
+              <Building2 className="w-8 h-8 mb-2 opacity-30" />
+              <p className="text-xs">Arraste empresas aqui</p>
+            </div>
+          ) : (
+            companies.map((company) => (
+              <CompanyCard key={company.id} company={company} />
+            ))
+          )}
+        </div>
+      </SortableContext>
+    </div>
+  );
+}
+
+export default function FunnelSlide({ companies, onRefreshData }: PlanSlideProps) {
+  const [activeCompany, setActiveCompany] = useState<Company | null>(null);
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
+    useSensor(KeyboardSensor),
+  );
+
+  const moveCompany = async (companyId: string, newStage: string) => {
     const { error } = await supabase
       .from("companies")
-      .update({ kanban_stage: stages[newIdx].key })
+      .update({ kanban_stage: newStage })
       .eq("id", companyId);
 
     if (error) {
@@ -39,10 +135,42 @@ export default function FunnelSlide({ companies, onRefreshData }: PlanSlideProps
     }
   };
 
+  const handleDragStart = (event: DragStartEvent) => {
+    const company = companies.find(c => c.id === event.active.id);
+    if (company) setActiveCompany(company);
+  };
+
+  const handleDragEnd = (event: DragEndEvent) => {
+    setActiveCompany(null);
+    const { active, over } = event;
+    if (!over) return;
+
+    const activeCompany = companies.find(c => c.id === active.id);
+    if (!activeCompany) return;
+
+    // Determine target stage
+    let targetStage: string | null = null;
+
+    // Check if dropped over another company
+    const overCompany = companies.find(c => c.id === over.id);
+    if (overCompany) {
+      targetStage = overCompany.kanban_stage;
+    }
+
+    // Check if dropped over a stage column (over.id might be a stage key)
+    if (!targetStage && stages.some(s => s.key === over.id)) {
+      targetStage = over.id as string;
+    }
+
+    if (targetStage && targetStage !== activeCompany.kanban_stage) {
+      moveCompany(activeCompany.id, targetStage);
+    }
+  };
+
   if (companies.length === 0) {
     return (
       <div className="h-full flex flex-col items-center justify-center p-12">
-        <p className="text-muted-foreground">Nenhuma empresa mapeada. Gere o plano na aba Capa.</p>
+        <p className="text-muted-foreground">Nenhuma empresa mapeada. Gere o plano na aba Dashboard.</p>
       </div>
     );
   }
@@ -52,57 +180,32 @@ export default function FunnelSlide({ companies, onRefreshData }: PlanSlideProps
       <p className="text-primary text-sm tracking-[0.2em] font-medium mb-1">CONTROLE DE PROCESSO</p>
       <h2 className="text-3xl font-bold text-foreground mb-1">Funil de Empresas</h2>
       <p className="text-muted-foreground text-sm mb-6">
-        {companies.length} empresas mapeadas · Use os botões {"< >"} para mover entre etapas
+        {companies.length} empresas mapeadas · Arraste os cards entre as colunas
       </p>
 
-      <div className="flex gap-3 overflow-x-auto">
-        {stages.map((stage) => {
-          const stageCompanies = companies.filter(c => c.kanban_stage === stage.key);
-          return (
-            <div key={stage.key} className="min-w-[220px] flex-1">
-              <div className="flex items-center justify-between mb-3">
-                <h3 className="text-foreground font-semibold text-sm">{stage.label}</h3>
-                <Badge variant="secondary" className="text-xs">{stageCompanies.length}</Badge>
-              </div>
-              <div className="space-y-2 max-h-[calc(100vh-300px)] overflow-y-auto">
-                {stageCompanies.length === 0 ? (
-                  <div className="flex flex-col items-center justify-center py-8 text-muted-foreground">
-                    <Building2 className="w-8 h-8 mb-2 opacity-30" />
-                    <p className="text-xs">Nenhuma empresa nesta etapa</p>
-                  </div>
-                ) : (
-                  stageCompanies.map((company) => {
-                    const currentIdx = stages.findIndex(s => s.key === stage.key);
-                    return (
-                      <div key={company.id} className="bg-card border border-border rounded-lg p-3">
-                        <div className="flex items-center justify-between mb-1">
-                          <h4 className="text-foreground font-semibold text-sm">{company.name}</h4>
-                          <Badge className={`${tierColors[company.tier] || "bg-muted"} text-white text-xs px-1.5`}>
-                            T{company.tier}
-                          </Badge>
-                        </div>
-                        <p className="text-muted-foreground text-xs mb-2">{company.segment}</p>
-                        <div className="flex gap-1">
-                          {currentIdx > 0 && (
-                            <Button variant="outline" size="sm" className="text-xs h-7 flex-1" onClick={() => moveCompany(company.id, "back")}>
-                              <ChevronLeft className="w-3 h-3 mr-0.5" /> Voltar
-                            </Button>
-                          )}
-                          {currentIdx < stages.length - 1 && (
-                            <Button variant="outline" size="sm" className="text-xs h-7 flex-1 text-primary border-primary/30" onClick={() => moveCompany(company.id, "forward")}>
-                              Avançar <ChevronRight className="w-3 h-3 ml-0.5" />
-                            </Button>
-                          )}
-                        </div>
-                      </div>
-                    );
-                  })
-                )}
-              </div>
-            </div>
-          );
-        })}
-      </div>
+      <DndContext
+        sensors={sensors}
+        collisionDetection={closestCorners}
+        onDragStart={handleDragStart}
+        onDragEnd={handleDragEnd}
+      >
+        <div className="flex gap-3">
+          {stages.map((stage) => {
+            const stageCompanies = companies.filter(c => c.kanban_stage === stage.key);
+            return (
+              <StageColumn
+                key={stage.key}
+                stageKey={stage.key}
+                label={stage.label}
+                companies={stageCompanies}
+              />
+            );
+          })}
+        </div>
+        <DragOverlay>
+          {activeCompany ? <CompanyCard company={activeCompany} isOverlay /> : null}
+        </DragOverlay>
+      </DndContext>
     </div>
   );
 }
