@@ -1,5 +1,5 @@
 import { useParams, useNavigate } from "react-router-dom";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
@@ -7,10 +7,11 @@ import { Badge } from "@/components/ui/badge";
 import {
   Loader2, ArrowLeft, Briefcase, Building2, Target, MessageSquare,
   Sparkles, Calendar, Search, TrendingUp, CheckCircle2, BarChart3,
-  MapPin, ChevronLeft, ChevronRight, Users, Clock
+  MapPin, ChevronLeft, ChevronRight, Users, Clock, Wand2
 } from "lucide-react";
 import { useState, useMemo } from "react";
-import type { MentorshipPlan, Company } from "@/types/mentorship";
+import { toast } from "sonner";
+import type { MentorshipPlan, Company, MessageTemplate, ScheduleActivity, JobTitleVariation } from "@/types/mentorship";
 
 const slides = [
   { id: "cover", title: "Capa", icon: Briefcase },
