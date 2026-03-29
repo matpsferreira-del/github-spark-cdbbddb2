@@ -15,7 +15,7 @@ import { toast } from "sonner";
 import { brazilStates, getCitiesByState } from "@/data/brazilCities";
 
 export default function CreatePlan() {
-  const { user } = useAuth();
+  const { user, loading } = useAuth();
   const navigate = useNavigate();
   const [submitting, setSubmitting] = useState(false);
 
@@ -39,6 +39,19 @@ export default function CreatePlan() {
   // Available cities state
   const [addCityState, setAddCityState] = useState("");
   const [addCityCity, setAddCityCity] = useState("");
+
+  if (!loading && !user) {
+    navigate("/auth");
+    return null;
+  }
+
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <Loader2 className="w-8 h-8 animate-spin text-primary" />
+      </div>
+    );
+  }
 
   const handleAddTargetPosition = () => {
     if (newTargetPosition.trim()) {
