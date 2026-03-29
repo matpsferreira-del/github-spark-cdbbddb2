@@ -35,6 +35,7 @@ export default function CreatePlan() {
   const [newTargetPosition, setNewTargetPosition] = useState("");
   const [connectionsPerDay, setConnectionsPerDay] = useState("50");
   const [postsPerWeek, setPostsPerWeek] = useState("1");
+  const [targetCompanyCount, setTargetCompanyCount] = useState("45");
 
   // Available cities state
   const [addCityState, setAddCityState] = useState("");
