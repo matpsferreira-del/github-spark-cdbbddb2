@@ -19,19 +19,6 @@ export default function CreatePlan() {
   const navigate = useNavigate();
   const [submitting, setSubmitting] = useState(false);
 
-  if (!loading && !user) {
-    navigate("/auth");
-    return null;
-  }
-
-  if (loading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center">
-        <Loader2 className="w-8 h-8 animate-spin text-primary" />
-      </div>
-    );
-  }
-
   // Form state
   const [menteeName, setMenteeName] = useState("");
   const [currentPosition, setCurrentPosition] = useState("");
@@ -52,6 +39,19 @@ export default function CreatePlan() {
   // Available cities state
   const [addCityState, setAddCityState] = useState("");
   const [addCityCity, setAddCityCity] = useState("");
+
+  if (!loading && !user) {
+    navigate("/auth");
+    return null;
+  }
+
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <Loader2 className="w-8 h-8 animate-spin text-primary" />
+      </div>
+    );
+  }
 
   const handleAddTargetPosition = () => {
     if (newTargetPosition.trim()) {
