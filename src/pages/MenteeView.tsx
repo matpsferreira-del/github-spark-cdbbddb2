@@ -71,7 +71,7 @@ export default function MenteeView() {
     enabled: !!token,
   });
 
-  const plan = accessData?.plan as MentorshipPlan | undefined;
+  const plan = accessData?.plan as unknown as MentorshipPlan | undefined;
   const planId = plan?.id;
 
   const { data: companies = [] } = useQuery({

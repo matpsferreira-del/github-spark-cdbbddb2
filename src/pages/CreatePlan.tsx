@@ -35,6 +35,7 @@ export default function CreatePlan() {
   const [newTargetPosition, setNewTargetPosition] = useState("");
   const [connectionsPerDay, setConnectionsPerDay] = useState("50");
   const [postsPerWeek, setPostsPerWeek] = useState("1");
+  const [targetCompanyCount, setTargetCompanyCount] = useState("45");
 
   // Available cities state
   const [addCityState, setAddCityState] = useState("");
@@ -99,6 +100,7 @@ export default function CreatePlan() {
           postsPerWeek: parseInt(postsPerWeek),
           connectionTypes: ["area", "hr"],
         },
+        target_company_count: parseInt(targetCompanyCount) || 45,
         status: "draft",
       });
 
@@ -315,7 +317,7 @@ export default function CreatePlan() {
               <CardTitle className="text-primary">Metas LinkedIn</CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <div>
                   <Label>Conexões por dia</Label>
                   <Input
@@ -335,6 +337,18 @@ export default function CreatePlan() {
                     min="0"
                     max="7"
                   />
+                </div>
+                <div>
+                  <Label>Empresas-alvo (total)</Label>
+                  <Input
+                    type="number"
+                    value={targetCompanyCount}
+                    onChange={(e) => setTargetCompanyCount(e.target.value)}
+                    min="10"
+                    max="200"
+                    placeholder="45"
+                  />
+                  <p className="text-xs text-muted-foreground mt-1">Quantidade de empresas que a IA irá mapear</p>
                 </div>
               </div>
             </CardContent>

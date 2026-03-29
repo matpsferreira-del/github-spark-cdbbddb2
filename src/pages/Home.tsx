@@ -33,7 +33,7 @@ export default function Home() {
         .eq("user_id", user!.id)
         .order("created_at", { ascending: false });
       if (error) throw error;
-      return data as MentorshipPlan[];
+      return data as unknown as MentorshipPlan[];
     },
     enabled: isAuthenticated && !!user,
   });

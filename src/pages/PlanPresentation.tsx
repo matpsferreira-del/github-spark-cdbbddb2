@@ -60,7 +60,7 @@ export default function PlanPresentation() {
     queryFn: async () => {
       const { data, error } = await supabase.from("mentorship_plans").select("*").eq("id", id!).eq("user_id", user!.id).single();
       if (error) throw error;
-      return data as MentorshipPlan;
+      return data as unknown as MentorshipPlan;
     },
     enabled: !!id && !!user,
   });

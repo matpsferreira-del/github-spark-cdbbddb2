@@ -18,6 +18,7 @@ export type MentorshipPlan = {
     postsPerWeek: number;
     connectionTypes: string[];
   };
+  target_company_count: number;
   status: "draft" | "completed" | "archived";
   created_at: string;
   updated_at: string;
