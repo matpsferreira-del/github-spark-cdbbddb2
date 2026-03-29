@@ -1,0 +1,1 @@
+ALTER TABLE public.mentorship_plans ADD COLUMN target_company_count integer NOT NULL DEFAULT 45;
