@@ -219,42 +219,40 @@ export default function CreatePlan() {
                 </Select>
               </div>
 
-              {regionPreference === "open_to_change" && (
-                <div>
-                  <Label>Cidades Disponíveis para Mudança</Label>
-                  <div className="flex gap-2 mb-2">
-                    <Select value={addCityState} onValueChange={(v) => { setAddCityState(v); setAddCityCity(""); }}>
-                      <SelectTrigger className="w-40"><SelectValue placeholder="Estado" /></SelectTrigger>
-                      <SelectContent>
-                        {brazilStates.map((s) => (
-                          <SelectItem key={s.code} value={s.code}>{s.code}</SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                    <Select value={addCityCity} onValueChange={setAddCityCity} disabled={!addCityState}>
-                      <SelectTrigger className="flex-1"><SelectValue placeholder="Cidade" /></SelectTrigger>
-                      <SelectContent>
-                        {citiesForAddState.map((c) => (
-                          <SelectItem key={c} value={c}>{c}</SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                    <Button type="button" variant="outline" size="icon" onClick={handleAddAvailableCity}>
-                      <Plus className="w-4 h-4" />
-                    </Button>
-                  </div>
-                  <div className="flex flex-wrap gap-2">
-                    {availableCities.map((c, i) => (
-                      <Badge key={i} variant="secondary" className="gap-1">
-                        {c.city}, {c.state}
-                        <button type="button" onClick={() => setAvailableCities(availableCities.filter((_, idx) => idx !== i))}>
-                          <X className="w-3 h-3" />
-                        </button>
-                      </Badge>
-                    ))}
-                  </div>
+              <div>
+                <Label>Cidades de Interesse</Label>
+                <div className="flex gap-2 mb-2">
+                  <Select value={addCityState} onValueChange={(v) => { setAddCityState(v); setAddCityCity(""); }}>
+                    <SelectTrigger className="w-40"><SelectValue placeholder="Estado" /></SelectTrigger>
+                    <SelectContent>
+                      {brazilStates.map((s) => (
+                        <SelectItem key={s.code} value={s.code}>{s.code}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <Select value={addCityCity} onValueChange={setAddCityCity} disabled={!addCityState}>
+                    <SelectTrigger className="flex-1"><SelectValue placeholder="Cidade" /></SelectTrigger>
+                    <SelectContent>
+                      {citiesForAddState.map((c) => (
+                        <SelectItem key={c} value={c}>{c}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <Button type="button" variant="outline" size="icon" onClick={handleAddAvailableCity}>
+                    <Plus className="w-4 h-4" />
+                  </Button>
                 </div>
-              )}
+                <div className="flex flex-wrap gap-2">
+                  {availableCities.map((c, i) => (
+                    <Badge key={i} variant="secondary" className="gap-1">
+                      {c.city}, {c.state}
+                      <button type="button" onClick={() => setAvailableCities(availableCities.filter((_, idx) => idx !== i))}>
+                        <X className="w-3 h-3" />
+                      </button>
+                    </Badge>
+                  ))}
+                </div>
+              </div>
             </CardContent>
           </Card>
 
