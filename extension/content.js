@@ -2,61 +2,70 @@ const SUPABASE_URL = "https://ywhxhkfgjkngafqkbfdw.supabase.co";
 const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inl3aHhoa2ZnamtuZ2FmcWtiZmR3Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQ0OTAwMzcsImV4cCI6MjA5MDA2NjAzN30.C-8mAq3Dv5p-W4nWxGxI0kO8miYOW0po2CWF8BUrPVk";
 
 function extractProfileData() {
-  // Name - try multiple selectors
-  const nameEl = document.querySelector("h1.text-heading-xlarge") ||
-                 document.querySelector("h1.inline.t-24") ||
-                 document.querySelector(".pv-text-details__left-panel h1") ||
-                 document.querySelector("h1");
-  const name = nameEl?.textContent?.trim() || "";
-
-  // Headline
-  const headlineEl = document.querySelector(".text-body-medium.break-words") ||
-                     document.querySelector(".pv-text-details__left-panel .text-body-medium");
-  const headline = headlineEl?.textContent?.trim() || "";
-
+  let name = "";
   let currentPosition = "";
   let company = "";
+  const url = window.location.href.split("?")[0];
 
-  // Try experience section - multiple selector patterns
-  const expSelectors = [
-    "#experience ~ .pvs-list__outer-container .pvs-entity--padded",
-    "#experience + .pvs-list__outer-container .pvs-entity--padded",
-    "section.experience-section li",
-    "[id='experience'] ~ div li.pvs-list__paged-list-item:first-child",
-    "#experience ~ div .pvs-list__paged-list-item:first-child",
-  ];
-
-  let expSection = null;
-  for (const sel of expSelectors) {
-    expSection = document.querySelector(sel);
-    if (expSection) break;
+  // Name: use document.title (most reliable on LinkedIn)
+  name = document.title.replace(' | LinkedIn', '').trim();
+  if (!name) {
+    const sectionTitles = ['Sobre','Experiência','Formação acadêmica','Competências','Idiomas','Interesses','Atividades','Em destaque','Experience','About','Education','Skills'];
+    const h2 = Array.from(document.querySelectorAll('h2')).find(h => {
+      const t = h.innerText?.trim();
+      return t && t.length > 2 && !sectionTitles.includes(t);
+    });
+    if (h2) name = h2.innerText.trim();
   }
 
-  if (expSection) {
-    const titleEl = expSection.querySelector(".t-bold span[aria-hidden='true']") ||
-                    expSection.querySelector(".mr1.t-bold span") ||
-                    expSection.querySelector("span.t-bold");
-    const companyEl = expSection.querySelector(".t-14.t-normal span[aria-hidden='true']") ||
-                      expSection.querySelector(".t-14.t-normal:not(.t-black--light) span") ||
-                      expSection.querySelector("span.t-14.t-normal");
-    currentPosition = titleEl?.textContent?.trim() || "";
-    // Company text often contains " · Full-time" etc, clean it
-    let rawCompany = companyEl?.textContent?.trim() || "";
-    company = rawCompany.split("·")[0].trim();
-  }
+  // Experience: find the current position (contains "o momento" or "present")
+  const experienceH2 = Array.from(document.querySelectorAll('h2')).find(
+    h => h.innerText?.trim() === 'Experiência' || h.innerText?.trim() === 'Experience'
+  );
+  const section = experienceH2?.closest('section') || experienceH2?.parentElement?.parentElement;
 
-  // Fallback to headline parsing
-  if (!currentPosition && headline) {
-    const parts = headline.split(/\s+(?:at|@|em|na|no)\s+/i);
-    if (parts.length >= 2) {
-      currentPosition = parts[0].trim();
-      company = parts[1].trim();
-    } else {
-      currentPosition = headline;
+  if (section) {
+    const allUls = section.querySelectorAll('ul');
+    for (const ul of allUls) {
+      const lis = Array.from(ul.querySelectorAll('li'));
+      for (const li of lis) {
+        const liText = li.innerText?.trim() || '';
+        const liLines = liText.split('\n').map(l => l.trim()).filter(l => l.length > 0);
+        const isCurrent = liText.includes('o momento') || liText.toLowerCase().includes('present');
+        if (!isCurrent) continue;
+
+        const parent = ul.parentElement;
+        const siblings = parent ? Array.from(parent.children) : [];
+        const ulIdx = siblings.indexOf(ul);
+        let prevDiv = null;
+        for (let j = ulIdx - 1; j >= 0; j--) {
+          if (siblings[j].tagName === 'DIV' && siblings[j].innerText?.trim().length > 2) {
+            prevDiv = siblings[j];
+            break;
+          }
+        }
+
+        if (prevDiv) {
+          const divLines = prevDiv.innerText.split('\n').map(l => l.trim()).filter(l => l.length > 0);
+          company = divLines[0];
+          currentPosition = liLines[0];
+        } else {
+          currentPosition = liLines[0];
+          company = liLines.length > 1 ? liLines[1].split('·')[0].trim() : '';
+        }
+        break;
+      }
+      if (currentPosition) break;
     }
   }
 
-  const url = window.location.href.split("?")[0];
+  // Fallback: lazy-column data
+  if (!currentPosition || !company) {
+    const lazy = document.querySelector('[data-testid="lazy-column"]');
+    const lazyLines = lazy ? lazy.innerText.split('\n').map(l => l.trim()).filter(l => l.length > 0) : [];
+    if (!currentPosition && lazyLines.length > 2) currentPosition = lazyLines[2];
+    if (!company && lazyLines.length > 6) company = lazyLines[6];
+  }
 
   return { name, currentPosition, company, url };
 }
