@@ -157,37 +157,32 @@ export default function PlanPresentation() {
     }
   };
 
-  const handleGenerateLink = async () => {
-    if (!plan) return;
+  const handleCreateMenteeAccess = async () => {
+    if (!plan || !menteeEmail || !menteePassword) return;
+    if (menteePassword.length < 6) {
+      toast.error("A senha deve ter pelo menos 6 caracteres");
+      return;
+    }
+    setCreatingMentee(true);
     try {
-      // Check if token already exists
-      const { data: existing } = await supabase
-        .from("plan_access_tokens")
-        .select("token")
-        .eq("plan_id", plan.id)
-        .eq("is_active", true)
-        .maybeSingle();
-
-      let token: string;
-      if (existing?.token) {
-        token = existing.token;
-      } else {
-        token = crypto.randomUUID();
-        const { error } = await supabase.from("plan_access_tokens").insert({
+      const { data, error } = await supabase.functions.invoke("register-mentee", {
+        body: {
+          email: menteeEmail,
+          password: menteePassword,
           plan_id: plan.id,
-          token,
           mentee_name: plan.mentee_name,
-        });
-        if (error) throw error;
-      }
-
-      const link = `${window.location.origin}/mentee/${token}`;
-      await navigator.clipboard.writeText(link);
-      setLinkCopied(true);
-      toast.success("Link copiado para a área de transferência!");
-      setTimeout(() => setLinkCopied(false), 3000);
+        },
+      });
+      if (error) throw error;
+      if (data?.error) throw new Error(data.error);
+      toast.success(`Acesso criado! O mentorado pode fazer login com ${menteeEmail}`);
+      setMenteeDialogOpen(false);
+      setMenteeEmail("");
+      setMenteePassword("");
     } catch (error: any) {
-      toast.error(error.message || "Erro ao gerar link");
+      toast.error(error.message || "Erro ao criar acesso do mentorado");
+    } finally {
+      setCreatingMentee(false);
     }
   };
 
