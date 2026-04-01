@@ -211,6 +211,35 @@ export type Database = {
           },
         ]
       }
+      mentee_plan_access: {
+        Row: {
+          created_at: string
+          id: string
+          plan_id: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          plan_id: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          plan_id?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "mentee_plan_access_plan_id_fkey"
+            columns: ["plan_id"]
+            isOneToOne: false
+            referencedRelation: "mentorship_plans"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       mentorship_plans: {
         Row: {
           available_cities: Json | null
@@ -222,6 +251,7 @@ export type Database = {
           general_notes: string | null
           id: string
           linkedin_goals: Json
+          mentee_email: string | null
           mentee_name: string
           region_preference: string
           state: string
@@ -243,6 +273,7 @@ export type Database = {
           general_notes?: string | null
           id?: string
           linkedin_goals?: Json
+          mentee_email?: string | null
           mentee_name: string
           region_preference?: string
           state: string
@@ -264,6 +295,7 @@ export type Database = {
           general_notes?: string | null
           id?: string
           linkedin_goals?: Json
+          mentee_email?: string | null
           mentee_name?: string
           region_preference?: string
           state?: string
@@ -403,15 +435,44 @@ export type Database = {
           },
         ]
       }
+      user_roles: {
+        Row: {
+          id: string
+          role: Database["public"]["Enums"]["app_role"]
+          user_id: string
+        }
+        Insert: {
+          id?: string
+          role?: Database["public"]["Enums"]["app_role"]
+          user_id: string
+        }
+        Update: {
+          id?: string
+          role?: Database["public"]["Enums"]["app_role"]
+          user_id?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
     }
     Functions: {
+      has_role: {
+        Args: {
+          _role: Database["public"]["Enums"]["app_role"]
+          _user_id: string
+        }
+        Returns: boolean
+      }
+      mentee_has_access: {
+        Args: { _plan_id: string; _user_id: string }
+        Returns: boolean
+      }
       user_owns_plan: { Args: { plan_uuid: string }; Returns: boolean }
     }
     Enums: {
-      [_ in never]: never
+      app_role: "admin" | "mentee"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -538,6 +599,8 @@ export type CompositeTypes<
 
 export const Constants = {
   public: {
-    Enums: {},
+    Enums: {
+      app_role: ["admin", "mentee"],
+    },
   },
 } as const

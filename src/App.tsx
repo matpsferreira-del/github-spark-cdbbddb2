@@ -8,6 +8,7 @@ import Auth from "./pages/Auth";
 import CreatePlan from "./pages/CreatePlan";
 import PlanPresentation from "./pages/PlanPresentation";
 import MenteeView from "./pages/MenteeView";
+import MyPlan from "./pages/MyPlan";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -24,6 +25,7 @@ const App = () => (
           <Route path="/create" element={<CreatePlan />} />
           <Route path="/plan/:id" element={<PlanPresentation />} />
           <Route path="/mentee/:token" element={<MenteeView />} />
+          <Route path="/my-plan" element={<MyPlan />} />
           <Route path="*" element={<NotFound />} />
         </Routes>
       </BrowserRouter>

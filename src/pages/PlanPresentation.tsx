@@ -3,11 +3,16 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import {
+  Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger
+} from "@/components/ui/dialog";
 import {
   Loader2, ArrowLeft, Briefcase, Building2, MessageSquare,
   Sparkles, Calendar, Search, TrendingUp, CheckCircle2, BarChart3,
   MapPin, Target, FileText, Linkedin, RefreshCw, Link2, Download,
-  FileSpreadsheet, Copy, Check
+  FileSpreadsheet, Copy, Check, UserPlus
 } from "lucide-react";
 import { useState, useMemo } from "react";
 import { toast } from "sonner";
@@ -53,6 +58,10 @@ export default function PlanPresentation() {
   const [generating, setGenerating] = useState(false);
   const [selectedCompany, setSelectedCompany] = useState<Company | null>(null);
   const [linkCopied, setLinkCopied] = useState(false);
+  const [menteeDialogOpen, setMenteeDialogOpen] = useState(false);
+  const [menteeEmail, setMenteeEmail] = useState("");
+  const [menteePassword, setMenteePassword] = useState("");
+  const [creatingMentee, setCreatingMentee] = useState(false);
   const queryClient = useQueryClient();
 
   const { data: plan, isLoading } = useQuery({
@@ -148,37 +157,32 @@ export default function PlanPresentation() {
     }
   };
 
-  const handleGenerateLink = async () => {
-    if (!plan) return;
+  const handleCreateMenteeAccess = async () => {
+    if (!plan || !menteeEmail || !menteePassword) return;
+    if (menteePassword.length < 6) {
+      toast.error("A senha deve ter pelo menos 6 caracteres");
+      return;
+    }
+    setCreatingMentee(true);
     try {
-      // Check if token already exists
-      const { data: existing } = await supabase
-        .from("plan_access_tokens")
-        .select("token")
-        .eq("plan_id", plan.id)
-        .eq("is_active", true)
-        .maybeSingle();
-
-      let token: string;
-      if (existing?.token) {
-        token = existing.token;
-      } else {
-        token = crypto.randomUUID();
-        const { error } = await supabase.from("plan_access_tokens").insert({
+      const { data, error } = await supabase.functions.invoke("register-mentee", {
+        body: {
+          email: menteeEmail,
+          password: menteePassword,
           plan_id: plan.id,
-          token,
           mentee_name: plan.mentee_name,
-        });
-        if (error) throw error;
-      }
-
-      const link = `${window.location.origin}/mentee/${token}`;
-      await navigator.clipboard.writeText(link);
-      setLinkCopied(true);
-      toast.success("Link copiado para a área de transferência!");
-      setTimeout(() => setLinkCopied(false), 3000);
+        },
+      });
+      if (error) throw error;
+      if (data?.error) throw new Error(data.error);
+      toast.success(`Acesso criado! O mentorado pode fazer login com ${menteeEmail}`);
+      setMenteeDialogOpen(false);
+      setMenteeEmail("");
+      setMenteePassword("");
     } catch (error: any) {
-      toast.error(error.message || "Erro ao gerar link");
+      toast.error(error.message || "Erro ao criar acesso do mentorado");
+    } finally {
+      setCreatingMentee(false);
     }
   };
 
@@ -279,15 +283,59 @@ export default function PlanPresentation() {
               <RefreshCw className="w-4 h-4 mr-1" /> Regenerar
             </Button>
           )}
-          <Button variant="ghost" size="sm" onClick={handleGenerateLink}>
-            {linkCopied ? <Check className="w-4 h-4 mr-1 text-green-500" /> : <Link2 className="w-4 h-4 mr-1" />}
-            {linkCopied ? "Copiado!" : "Link Mentorado"}
-          </Button>
-          <Button variant="ghost" size="sm">
-            <Download className="w-4 h-4 mr-1" /> PDF
-          </Button>
-          <Button variant="ghost" size="sm">
-            <FileSpreadsheet className="w-4 h-4 mr-1" /> PPT
+          <Dialog open={menteeDialogOpen} onOpenChange={setMenteeDialogOpen}>
+            <DialogTrigger asChild>
+              <Button variant="ghost" size="sm">
+                <UserPlus className="w-4 h-4 mr-1" /> Acesso Mentorado
+              </Button>
+            </DialogTrigger>
+            <DialogContent>
+              <DialogHeader>
+                <DialogTitle>Criar Acesso do Mentorado</DialogTitle>
+                <DialogDescription>
+                  Defina email e senha para o mentorado acessar seu plano
+                </DialogDescription>
+              </DialogHeader>
+              <div className="space-y-4">
+                <div>
+                  <Label>Email do Mentorado</Label>
+                  <Input
+                    type="email"
+                    value={menteeEmail}
+                    onChange={(e) => setMenteeEmail(e.target.value)}
+                    placeholder="mentorado@email.com"
+                  />
+                </div>
+                <div>
+                  <Label>Senha</Label>
+                  <Input
+                    type="password"
+                    value={menteePassword}
+                    onChange={(e) => setMenteePassword(e.target.value)}
+                    placeholder="Mínimo 6 caracteres"
+                    minLength={6}
+                  />
+                </div>
+                <Button onClick={handleCreateMenteeAccess} disabled={creatingMentee || !menteeEmail || !menteePassword} className="w-full">
+                  {creatingMentee && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
+                  Criar Acesso
+                </Button>
+              </div>
+            </DialogContent>
+          </Dialog>
+          <Button variant="ghost" size="sm" onClick={() => {
+            fetch("/orion-linkedin-extension.zip")
+              .then(res => { if (!res.ok) throw new Error("Download failed"); return res.blob(); })
+              .then(blob => {
+                const a = document.createElement("a");
+                a.href = URL.createObjectURL(blob);
+                a.download = "orion-linkedin-extension.zip";
+                a.click();
+                URL.revokeObjectURL(a.href);
+              })
+              .catch(() => toast.error("Erro ao baixar extensão"));
+          }}>
+            <Download className="w-4 h-4 mr-1" /> Extensão Chrome
           </Button>
         </div>
       </div>

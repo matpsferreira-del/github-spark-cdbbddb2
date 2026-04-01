@@ -1,0 +1,25 @@
+{
+  "manifest_version": 3,
+  "name": "Orion LinkedIn Saver",
+  "version": "1.0.0",
+  "description": "Salve perfis do LinkedIn diretamente no seu plano Orion Recruitment",
+  "permissions": ["activeTab", "storage"],
+  "action": {
+    "default_popup": "popup.html",
+    "default_icon": "icon.png"
+  },
+  "content_scripts": [
+    {
+      "matches": ["https://www.linkedin.com/in/*"],
+      "js": ["content.js"],
+      "css": ["content.css"]
+    }
+  ],
+  "background": {
+    "service_worker": "background.js"
+  },
+  "icons": {
+    "48": "icon.png",
+    "128": "icon.png"
+  }
+}
