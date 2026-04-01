@@ -17,23 +17,38 @@ function extractProfileData() {
     });
     if (h2) name = h2.innerText.trim();
   }
+  console.log("[Orion] Name extracted:", name);
 
-  // Experience: find the current position (contains "o momento" or "present")
+  // Strategy 1: Find Experience section and look for current role
   const experienceH2 = Array.from(document.querySelectorAll('h2')).find(
     h => h.innerText?.trim() === 'Experiência' || h.innerText?.trim() === 'Experience'
   );
-  const section = experienceH2?.closest('section') || experienceH2?.parentElement?.parentElement;
+  console.log("[Orion] Experience H2 found:", !!experienceH2);
+
+  // Try closest section first, then walk up the DOM
+  let section = experienceH2?.closest('section');
+  if (!section) section = experienceH2?.parentElement?.parentElement;
+  if (!section) section = experienceH2?.parentElement?.parentElement?.parentElement;
+  console.log("[Orion] Experience section found:", !!section);
 
   if (section) {
     const allUls = section.querySelectorAll('ul');
+    console.log("[Orion] ULs in experience section:", allUls.length);
+
     for (const ul of allUls) {
-      const lis = Array.from(ul.querySelectorAll('li'));
-      for (const li of lis) {
+      const lis = Array.from(ul.querySelectorAll(':scope > li'));
+      // If no direct children, try all li
+      const liList = lis.length > 0 ? lis : Array.from(ul.querySelectorAll('li'));
+      
+      for (const li of liList) {
         const liText = li.innerText?.trim() || '';
         const liLines = liText.split('\n').map(l => l.trim()).filter(l => l.length > 0);
         const isCurrent = liText.includes('o momento') || liText.toLowerCase().includes('present');
+        
         if (!isCurrent) continue;
+        console.log("[Orion] Found current position li, lines:", liLines.slice(0, 5));
 
+        // Check if this is a grouped experience (company as parent div)
         const parent = ul.parentElement;
         const siblings = parent ? Array.from(parent.children) : [];
         const ulIdx = siblings.indexOf(ul);
@@ -46,12 +61,19 @@ function extractProfileData() {
         }
 
         if (prevDiv) {
+          // Grouped: company is in the div above the ul
           const divLines = prevDiv.innerText.split('\n').map(l => l.trim()).filter(l => l.length > 0);
           company = divLines[0];
           currentPosition = liLines[0];
+          console.log("[Orion] Grouped experience - Company:", company, "Position:", currentPosition);
         } else {
+          // Single: position is first line, company after
           currentPosition = liLines[0];
-          company = liLines.length > 1 ? liLines[1].split('·')[0].trim() : '';
+          // Company is usually the second line, sometimes with "· Full-time" etc
+          if (liLines.length > 1) {
+            company = liLines[1].split('·')[0].trim();
+          }
+          console.log("[Orion] Single experience - Position:", currentPosition, "Company:", company);
         }
         break;
       }
@@ -59,14 +81,41 @@ function extractProfileData() {
     }
   }
 
-  // Fallback: lazy-column data
+  // Strategy 2: If no experience section found, try scanning all spans for current role patterns
   if (!currentPosition || !company) {
+    console.log("[Orion] Strategy 1 failed, trying headline fallback...");
+    // The headline under the name often has "Cargo na Empresa" or "Cargo at Company"
+    const h1 = document.querySelector('h1');
+    if (h1) {
+      const headlineContainer = h1.parentElement?.parentElement;
+      if (headlineContainer) {
+        const headlineDiv = headlineContainer.querySelector('.text-body-medium');
+        if (headlineDiv) {
+          const headlineText = headlineDiv.innerText?.trim() || '';
+          console.log("[Orion] Headline text:", headlineText);
+          // Try "Cargo na Empresa" or "Role at Company"
+          const naMatch = headlineText.match(/^(.+?)\s+(?:na|no|em|at)\s+(.+)$/i);
+          if (naMatch) {
+            if (!currentPosition) currentPosition = naMatch[1].trim();
+            if (!company) company = naMatch[2].trim();
+          } else if (!currentPosition) {
+            currentPosition = headlineText;
+          }
+        }
+      }
+    }
+  }
+
+  // Strategy 3: lazy-column fallback
+  if (!currentPosition || !company) {
+    console.log("[Orion] Trying lazy-column fallback...");
     const lazy = document.querySelector('[data-testid="lazy-column"]');
     const lazyLines = lazy ? lazy.innerText.split('\n').map(l => l.trim()).filter(l => l.length > 0) : [];
     if (!currentPosition && lazyLines.length > 2) currentPosition = lazyLines[2];
     if (!company && lazyLines.length > 6) company = lazyLines[6];
   }
 
+  console.log("[Orion] Final extracted data:", { name, currentPosition, company, url });
   return { name, currentPosition, company, url };
 }
 
