@@ -1,4 +1,4 @@
-import { Sparkles, Copy, Check, CheckCircle2, Circle } from "lucide-react";
+import { Sparkles, Copy, Check, CheckCircle2, Circle, RefreshCw, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useState } from "react";
 import { toast } from "sonner";
