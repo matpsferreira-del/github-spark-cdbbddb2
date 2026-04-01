@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
@@ -10,9 +10,15 @@ import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
-import { X, Plus, Loader2, ArrowLeft } from "lucide-react";
+import { X, Plus, Loader2, ArrowLeft, Linkedin, FileText, ClipboardList, Upload, CheckCircle2, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { brazilStates, getCitiesByState } from "@/data/brazilCities";
+
+const docTypes = [
+  { type: "linkedin_pdf", label: "LinkedIn PDF", icon: Linkedin, iconColor: "text-primary", description: "Exporte seu perfil LinkedIn em PDF: Perfil → Mais → Salvar como PDF." },
+  { type: "personal_cv", label: "CV Pessoal", icon: FileText, iconColor: "text-green-500", description: "Anexe o currículo pessoal atual do mentorado (PDF ou TXT)." },
+  { type: "questionnaire", label: "Questionário", icon: ClipboardList, iconColor: "text-amber-500", description: "Questionário respondido pelo mentorado (opcional)." },
+] as const;
 
 export default function CreatePlan() {
   const { user, loading } = useAuth();
