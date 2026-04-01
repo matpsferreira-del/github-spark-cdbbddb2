@@ -131,21 +131,22 @@ export default function ContentSlide({ plan, onRefreshData, onGenerate, generati
           })}
         </div>
       ) : (
-        <div className="space-y-3">
-          {[
-            `Compartilhe um aprendizado da sua experiência como ${plan.current_position}`,
-            `Comente sobre tendências em ${plan.current_area}`,
-            "Publique um case de sucesso ou projeto relevante",
-            "Faça uma reflexão sobre liderança ou trabalho em equipe",
-          ].map((idea, i) => (
-            <div key={i} className="bg-card border border-border rounded-lg p-4 flex items-center gap-3">
-              <Sparkles className="w-4 h-4 text-primary shrink-0" />
-              <p className="text-foreground text-sm">{idea}</p>
-            </div>
-          ))}
-          <p className="text-muted-foreground text-xs text-center mt-4">
-            Gere o plano completo na aba Dashboard para receber prompts personalizados.
+        <div className="text-center py-8">
+          <Sparkles className="w-12 h-12 text-primary mx-auto mb-4" />
+          <h3 className="text-foreground font-semibold text-lg mb-2">Prompts ainda não gerados</h3>
+          <p className="text-muted-foreground text-sm mb-6 max-w-md mx-auto">
+            Clique abaixo para gerar prompts personalizados para seus posts no LinkedIn. A IA criará 8 prompts prontos para copiar e colar no Gemini.
           </p>
+          <Button
+            onClick={() => {
+              if (onGenerate) onGenerate("all");
+            }}
+            disabled={generating}
+            className="gap-2"
+          >
+            {generating ? <Loader2 className="w-4 h-4 animate-spin" /> : <RefreshCw className="w-4 h-4" />}
+            {generating ? "Gerando plano completo..." : "Gerar Plano com IA"}
+          </Button>
         </div>
       )}
     </div>
