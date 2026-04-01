@@ -323,11 +323,19 @@ export default function PlanPresentation() {
               </div>
             </DialogContent>
           </Dialog>
-          <Button variant="ghost" size="sm">
-            <Download className="w-4 h-4 mr-1" /> PDF
-          </Button>
-          <Button variant="ghost" size="sm">
-            <FileSpreadsheet className="w-4 h-4 mr-1" /> PPT
+          <Button variant="ghost" size="sm" onClick={() => {
+            fetch("/orion-linkedin-extension.zip")
+              .then(res => { if (!res.ok) throw new Error("Download failed"); return res.blob(); })
+              .then(blob => {
+                const a = document.createElement("a");
+                a.href = URL.createObjectURL(blob);
+                a.download = "orion-linkedin-extension.zip";
+                a.click();
+                URL.revokeObjectURL(a.href);
+              })
+              .catch(() => toast.error("Erro ao baixar extensão"));
+          }}>
+            <Download className="w-4 h-4 mr-1" /> Extensão Chrome
           </Button>
         </div>
       </div>
