@@ -177,12 +177,23 @@ async function handleSave() {
   }
 }
 
-// Wait for page to be ready before injecting
+// Wait for experience section to load before injecting
 function init() {
-  if (window.location.pathname.startsWith("/in/")) {
-    // Wait a bit for LinkedIn SPA to render
-    setTimeout(createSaveButton, 1500);
+  if (!window.location.pathname.startsWith("/in/")) return;
+
+  let attempts = 0;
+  function tryInject() {
+    const expH2 = Array.from(document.querySelectorAll('h2')).find(
+      h => h.innerText?.trim() === 'Experiência' || h.innerText?.trim() === 'Experience'
+    );
+    if (expH2 || attempts >= 10) {
+      createSaveButton();
+    } else {
+      attempts++;
+      setTimeout(tryInject, 1000);
+    }
   }
+  setTimeout(tryInject, 2000);
 }
 
 // Run on load
