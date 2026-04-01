@@ -3,11 +3,16 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import {
+  Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger
+} from "@/components/ui/dialog";
 import {
   Loader2, ArrowLeft, Briefcase, Building2, MessageSquare,
   Sparkles, Calendar, Search, TrendingUp, CheckCircle2, BarChart3,
   MapPin, Target, FileText, Linkedin, RefreshCw, Link2, Download,
-  FileSpreadsheet, Copy, Check
+  FileSpreadsheet, Copy, Check, UserPlus
 } from "lucide-react";
 import { useState, useMemo } from "react";
 import { toast } from "sonner";
