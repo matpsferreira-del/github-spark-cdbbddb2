@@ -117,6 +117,27 @@ export type Database = {
           },
         ]
       }
+      content_prompt_completions: {
+        Row: {
+          completed_at: string
+          id: string
+          plan_id: string
+          prompt_index: number
+        }
+        Insert: {
+          completed_at?: string
+          id?: string
+          plan_id: string
+          prompt_index: number
+        }
+        Update: {
+          completed_at?: string
+          id?: string
+          plan_id?: string
+          prompt_index?: number
+        }
+        Relationships: []
+      }
       cv_documents: {
         Row: {
           extracted_text: string | null
