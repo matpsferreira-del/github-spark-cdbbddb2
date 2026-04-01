@@ -111,6 +111,35 @@ function createSaveButton() {
   console.log("[Orion] Save button injected successfully");
 }
 
+async function refreshSessionIfNeeded() {
+  const stored = await chrome.storage.local.get(["session", "refreshToken"]);
+  if (!stored.session || !stored.refreshToken) return null;
+
+  // Try to refresh the token
+  try {
+    const res = await fetch(`${SUPABASE_URL}/auth/v1/token?grant_type=refresh_token`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "apikey": SUPABASE_ANON_KEY,
+      },
+      body: JSON.stringify({ refresh_token: stored.refreshToken }),
+    });
+    const data = await res.json();
+    if (data.access_token) {
+      await chrome.storage.local.set({
+        session: data.access_token,
+        refreshToken: data.refresh_token,
+      });
+      console.log("[Orion] Token refreshed successfully");
+      return data.access_token;
+    }
+  } catch (e) {
+    console.error("[Orion] Token refresh failed:", e);
+  }
+  return stored.session;
+}
+
 async function handleSave() {
   const btn = document.getElementById("orion-save-btn");
   if (!btn) return;
@@ -120,12 +149,15 @@ async function handleSave() {
   btn.style.opacity = "0.7";
 
   try {
-    const stored = await chrome.storage.local.get(["session", "planId"]);
+    const stored = await chrome.storage.local.get(["session", "planId", "refreshToken"]);
     if (!stored.session || !stored.planId) {
       btn.innerHTML = "❌ Faça login na extensão";
       setTimeout(() => { btn.innerHTML = originalText; btn.disabled = false; btn.style.opacity = "1"; }, 3000);
       return;
     }
+
+    // Refresh token before saving
+    const accessToken = await refreshSessionIfNeeded();
 
     const profile = extractProfileData();
     console.log("[Orion] Extracted profile:", profile);
@@ -141,7 +173,7 @@ async function handleSave() {
       headers: {
         "Content-Type": "application/json",
         "apikey": SUPABASE_ANON_KEY,
-        "Authorization": `Bearer ${stored.session}`,
+        "Authorization": `Bearer ${accessToken || stored.session}`,
         "Prefer": "return=minimal",
       },
       body: JSON.stringify({
@@ -158,8 +190,14 @@ async function handleSave() {
 
     if (!res.ok) {
       const errData = await res.json().catch(() => ({}));
-      console.error("[Orion] Save error response:", errData);
-      throw new Error(errData.message || `HTTP ${res.status}`);
+      console.error("[Orion] Save error:", res.status, errData);
+      if (res.status === 401 || res.status === 403) {
+        btn.innerHTML = "❌ Sessão expirada - refaça login";
+      } else {
+        btn.innerHTML = `❌ Erro ${res.status}`;
+      }
+      setTimeout(() => { btn.innerHTML = originalText; btn.disabled = false; btn.style.opacity = "1"; }, 3000);
+      return;
     }
 
     btn.innerHTML = "✅ Salvo!";
