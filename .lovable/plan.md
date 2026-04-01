@@ -1,78 +1,30 @@
 
 
-## Plano: Autenticação de Mentorado + Extensão Chrome para LinkedIn
+## Plano: Formulário editável na extensão ao invés de extração automática
 
-### Contexto
+### Problema
+O DOM do LinkedIn muda frequentemente e varia entre idiomas/layouts. Tentar extrair cargo e empresa automaticamente da seção de Experiências é frágil e falha em muitos perfis.
 
-Hoje o mentorado acessa via link com token (`/mentee/:token`). Vamos migrar para login com email/senha e criar uma extensão Chrome para salvar perfis do LinkedIn.
+### Solução
+Ao clicar em "Salvar no Orion", em vez de salvar direto, abrir um **mini formulário flutuante** pré-preenchido com o que conseguiu extrair (nome do título da página, URL). O usuário confirma/edita os campos antes de salvar.
 
----
+### Como funciona
+1. Usuário clica no botão "Salvar no Orion"
+2. Aparece um card flutuante (fixed, bottom-right) com campos editáveis:
+   - **Nome** (pré-preenchido do `document.title`)
+   - **Cargo Atual** (pré-preenchido se encontrado, senão vazio)
+   - **Empresa Atual** (pré-preenchido se encontrada, senão vazio)
+   - **Tipo** (dropdown: Decisor / RH / Outro)
+   - **Tier** (dropdown: A / B / C)
+3. Botões "Salvar" e "Cancelar"
+4. A extração automática continua tentando preencher, mas o usuário sempre pode corrigir
 
-### Parte 1: Autenticação do Mentorado
+### Mudanças
+- **`extension/content.js`**: Substituir `handleSave` direto por `showSaveForm()` que cria um card HTML com inputs. Manter a lógica de extração como "best effort" para pré-preencher. Remover as validações que bloqueiam o salvamento quando cargo/empresa não são encontrados.
+- **`public/orion-linkedin-extension.zip`**: Reempacotar.
 
-**Abordagem:** Usar o mesmo sistema de auth (email/senha) que o mentor já usa, mas com uma tabela de roles para diferenciar mentor vs mentorado, e vincular o mentorado ao seu plano.
-
-**Banco de dados:**
-- Criar tabela `user_roles` com enum `app_role` (admin, mentee) e função `has_role()`
-- Criar tabela `mentee_plan_access` vinculando `user_id` do mentorado ao `plan_id`
-- O mentor, ao criar o plano, cadastra email/senha do mentorado (ou apenas o email, e o mentorado faz signup)
-
-**Fluxo:**
-1. Mentor cria o plano e informa o email do mentorado
-2. Sistema cria a conta do mentorado (ou envia convite por email)
-3. Mentorado faz login na mesma tela `/auth` e é redirecionado para seu plano
-4. Rota `/mentee/:token` é substituída por `/my-plan` (rota protegida para role "mentee")
-
-**Mudanças no código:**
-- Atualizar `Auth.tsx` para funcionar para ambos os perfis
-- Criar página `MyPlan.tsx` (usa mesmo layout do `MenteeView` atual mas autenticada)
-- Atualizar `Home.tsx` para redirecionar mentorados para `/my-plan`
-- Atualizar RLS policies para usar `mentee_plan_access` ao invés de tokens públicos
-- Manter `plan_access_tokens` como fallback ou remover
-
----
-
-### Parte 2: Extensão Chrome para LinkedIn
-
-**Funcionalidade:** Botão na página do LinkedIn que captura dados do perfil e salva no `contact_mappings` do plano do mentorado.
-
-**Arquitetura:**
-- Extensão Manifest V3 com content script que injeta botão nas páginas de perfil do LinkedIn
-- Popup para login (email/senha) e seleção do plano (auto-detectado pelo mentorado)
-- Ao clicar "Salvar Perfil", extrai: nome, URL, cargo atual, empresa atual
-- Insere diretamente na tabela `contact_mappings` via Supabase client
-
-**Arquivos da extensão:**
-- `extension/manifest.json` - Manifest V3, permissões para `linkedin.com`
-- `extension/popup.html` + `popup.js` - Login do mentorado
-- `extension/content.js` - Content script que injeta botão e extrai dados do perfil
-- `extension/background.js` - Service worker para gerenciar sessão
-
-**Empacotamento:** ZIP em `public/` para download dentro do app, com instruções de instalação.
-
----
-
-### Detalhes Técnicos
-
-**Migração SQL:**
-```text
-1. CREATE TYPE app_role AS ENUM ('admin', 'mentee')
-2. CREATE TABLE user_roles (user_id, role) com RLS
-3. CREATE TABLE mentee_plan_access (user_id, plan_id) com RLS
-4. CREATE FUNCTION has_role() SECURITY DEFINER
-5. Atualizar RLS de todas as tabelas para suportar mentee_plan_access
-```
-
-**Extensão Chrome - extração de dados:**
-- Seletores CSS do LinkedIn para nome, headline, empresa
-- Fallback com meta tags `og:title`
-- Dados salvos como contato tipo "other" com status "identified"
-
-**Arquivos modificados:**
-- `src/pages/Auth.tsx` - Login unificado
-- `src/pages/Home.tsx` - Redirect por role
-- Nova `src/pages/MyPlan.tsx` - Dashboard do mentorado autenticado
-- `src/pages/CreatePlan.tsx` - Campo para email do mentorado
-- Migração SQL para roles e acesso
-- `extension/*` - Chrome extension completa
+### Benefício
+- Funciona em qualquer perfil do LinkedIn independente do layout
+- O mentorado tem controle total sobre os dados salvos
+- A extração automática ainda ajuda quando funciona, mas não bloqueia mais
 
