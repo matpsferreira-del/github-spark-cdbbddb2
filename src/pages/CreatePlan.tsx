@@ -387,6 +387,73 @@ export default function CreatePlan() {
             </CardContent>
           </Card>
 
+          {/* Documentos */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-primary">Documentos do Mentorado</CardTitle>
+              <CardDescription>Anexe documentos para que a IA use na análise, otimização do CV e do perfil LinkedIn.</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                {docTypes.map(({ type, label, icon: Icon, iconColor, description }) => {
+                  const file = pendingFiles[type];
+                  return (
+                    <div key={type} className="bg-secondary/30 border border-border rounded-xl p-5">
+                      <div className="flex items-center gap-3 mb-2">
+                        <Icon className={`w-5 h-5 ${iconColor}`} />
+                        <h3 className="text-foreground font-bold text-sm">{label}</h3>
+                      </div>
+                      <p className="text-muted-foreground text-xs mb-4">{description}</p>
+                      {file ? (
+                        <div className="space-y-2">
+                          <div className="flex items-center gap-2 text-sm text-primary">
+                            <CheckCircle2 className="w-4 h-4" />
+                            <span className="truncate text-xs">{file.name}</span>
+                          </div>
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            className="w-full text-destructive"
+                            onClick={() => {
+                              const next = { ...pendingFiles };
+                              delete next[type];
+                              setPendingFiles(next);
+                            }}
+                          >
+                            <Trash2 className="w-3 h-3 mr-1" /> Remover
+                          </Button>
+                        </div>
+                      ) : (
+                        <>
+                          <input
+                            type="file"
+                            accept=".pdf,.txt,.doc,.docx"
+                            className="hidden"
+                            ref={el => { fileInputRefs.current[type] = el; }}
+                            onChange={(e) => {
+                              const f = e.target.files?.[0];
+                              if (f) setPendingFiles(prev => ({ ...prev, [type]: f }));
+                            }}
+                          />
+                          <Button
+                            type="button"
+                            variant="outline"
+                            className="w-full"
+                            onClick={() => fileInputRefs.current[type]?.click()}
+                          >
+                            <Upload className="w-4 h-4 mr-2" />
+                            Anexar {label}
+                          </Button>
+                        </>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            </CardContent>
+          </Card>
+
           {/* Observações */}
           <Card>
             <CardHeader>
