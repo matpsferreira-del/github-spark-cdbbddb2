@@ -8,6 +8,7 @@ import Auth from "./pages/Auth";
 import CreatePlan from "./pages/CreatePlan";
 import PlanPresentation from "./pages/PlanPresentation";
 import MenteeView from "./pages/MenteeView";
+import MyPlan from "./pages/MyPlan";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
