@@ -139,13 +139,13 @@ export default function ContentSlide({ plan, onRefreshData, onGenerate, generati
           </p>
           <Button
             onClick={() => {
-              if (onGenerate) onGenerate("all");
+              if (onGenerate) onGenerate("content_only");
             }}
             disabled={generating}
             className="gap-2"
           >
-            {generating ? <Loader2 className="w-4 h-4 animate-spin" /> : <RefreshCw className="w-4 h-4" />}
-            {generating ? "Gerando plano completo..." : "Gerar Plano com IA"}
+            {generating ? <Loader2 className="w-4 h-4 animate-spin" /> : <Sparkles className="w-4 h-4" />}
+            {generating ? "Gerando prompts..." : "Gerar Prompts de Conteúdo"}
           </Button>
         </div>
       )}

@@ -536,6 +536,39 @@ serve(async (req) => {
         break;
       }
 
+      case "content_only": {
+        // Fetch CV documents for LinkedIn profile optimization
+        const { data: cvDocsContent } = await supabase
+          .from("cv_documents")
+          .select("extracted_text")
+          .eq("plan_id", plan_id)
+          .not("extracted_text", "is", null);
+        const cvTextsContent = (cvDocsContent || []).map((d: any) => d.extracted_text).filter(Boolean);
+
+        const [contentPromptsOnly, linkedinProfileOnly] = await Promise.all([
+          generateContentPrompts(plan),
+          generateLinkedInProfile(plan, cvTextsContent),
+        ]);
+
+        // Merge into existing general_notes
+        let existingData: any = {};
+        if (plan.general_notes) {
+          try { existingData = JSON.parse(plan.general_notes); } catch {}
+        }
+        existingData.content_prompts = contentPromptsOnly.prompts;
+        existingData.linkedin_profile = { sections: linkedinProfileOnly.sections };
+
+        await supabase.from("mentorship_plans").update({
+          general_notes: JSON.stringify(existingData),
+        }).eq("id", plan_id);
+
+        result = {
+          content_prompts: contentPromptsOnly.prompts?.length || 0,
+          linkedin_profile: true,
+        };
+        break;
+      }
+
       default:
         return new Response(JSON.stringify({ error: "Invalid type" }), {
           status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
