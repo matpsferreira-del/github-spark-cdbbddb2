@@ -91,7 +91,7 @@ export default function CreatePlan() {
     setSubmitting(true);
 
     try {
-      const { error } = await supabase.from("mentorship_plans").insert({
+      const { data: planData, error } = await supabase.from("mentorship_plans").insert({
         user_id: user!.id,
         mentee_name: menteeName,
         current_position: currentPosition,
@@ -112,9 +112,32 @@ export default function CreatePlan() {
         },
         target_company_count: parseInt(targetCompanyCount) || 45,
         status: "draft",
-      });
+      }).select("id").single();
 
       if (error) throw error;
+
+      // Upload pending documents
+      const planId = planData.id;
+      for (const [docType, file] of Object.entries(pendingFiles)) {
+        try {
+          const filePath = `${planId}/${docType}/${file.name}`;
+          const { error: uploadError } = await supabase.storage
+            .from("cv-documents")
+            .upload(filePath, file, { upsert: true });
+          if (uploadError) throw uploadError;
+
+          const { data: urlData } = supabase.storage.from("cv-documents").getPublicUrl(filePath);
+          await supabase.from("cv_documents").insert({
+            plan_id: planId,
+            type: docType,
+            file_name: file.name,
+            file_url: urlData.publicUrl,
+          });
+        } catch (uploadErr: any) {
+          console.error(`Error uploading ${docType}:`, uploadErr);
+        }
+      }
+
       toast.success("Plano estratégico criado com sucesso!");
       navigate("/");
     } catch (error: any) {
