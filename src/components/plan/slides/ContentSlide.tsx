@@ -7,11 +7,12 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { parseDiagnosisData } from "../types";
 import type { PlanSlideProps } from "../types";
 
-export default function ContentSlide({ plan, onRefreshData }: PlanSlideProps) {
+export default function ContentSlide({ plan, onRefreshData, onGenerate, generating }: PlanSlideProps) {
   const linkedinGoals = plan.linkedin_goals as any;
   const data = parseDiagnosisData(plan.general_notes);
   const prompts = data.content_prompts;
   const [copiedIdx, setCopiedIdx] = useState<number | null>(null);
+  const [generatingContent, setGeneratingContent] = useState(false);
   const queryClient = useQueryClient();
 
   const { data: completions = [] } = useQuery({
