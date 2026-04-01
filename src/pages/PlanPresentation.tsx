@@ -235,9 +235,9 @@ export default function PlanPresentation() {
     switch (slide.id) {
       case "dashboard": return <DashboardSlide {...slideProps} />;
       case "diagnosis": return <DiagnosisSlide {...slideProps} />;
-      case "companies-a": return <CompanyTierSlide tier="A" companies={companyTiers.A} onSelectCompany={setSelectedCompany} />;
-      case "companies-b": return <CompanyTierSlide tier="B" companies={companyTiers.B} onSelectCompany={setSelectedCompany} />;
-      case "companies-c": return <CompanyTierSlide tier="C" companies={companyTiers.C} onSelectCompany={setSelectedCompany} />;
+      case "companies-a": return <CompanyTierSlide tier="A" companies={companyTiers.A} planId={plan.id} onSelectCompany={setSelectedCompany} onRefreshData={refreshData} />;
+      case "companies-b": return <CompanyTierSlide tier="B" companies={companyTiers.B} planId={plan.id} onSelectCompany={setSelectedCompany} onRefreshData={refreshData} />;
+      case "companies-c": return <CompanyTierSlide tier="C" companies={companyTiers.C} planId={plan.id} onSelectCompany={setSelectedCompany} onRefreshData={refreshData} />;
       case "jobs": return <JobTitlesSlide {...slideProps} />;
       case "linkedin-profile": return <LinkedInProfileSlide {...slideProps} />;
       case "funnel": return <FunnelSlide {...slideProps} />;

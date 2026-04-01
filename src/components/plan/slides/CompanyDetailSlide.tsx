@@ -2,7 +2,7 @@ import { useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { ArrowLeft, Plus, Briefcase, Trash2, Users, ExternalLink } from "lucide-react";
+import { ArrowLeft, Plus, Briefcase, Trash2, Users, ExternalLink, AlertTriangle } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import type { Company, ContactMapping } from "@/types/mentorship";
@@ -94,9 +94,27 @@ export default function CompanyDetailSlide({ company, contacts, onBack, onRefres
 
   return (
     <div className="p-8">
-      <Button variant="ghost" size="sm" onClick={onBack} className="mb-4">
-        <ArrowLeft className="w-4 h-4 mr-1" /> Voltar ao Tier
-      </Button>
+      <div className="flex items-center justify-between mb-4">
+        <Button variant="ghost" size="sm" onClick={onBack}>
+          <ArrowLeft className="w-4 h-4 mr-1" /> Voltar ao Tier
+        </Button>
+        <Button
+          variant="destructive"
+          size="sm"
+          onClick={async () => {
+            if (!confirm("Tem certeza que deseja excluir esta empresa?")) return;
+            const { error } = await supabase.from("companies").delete().eq("id", company.id);
+            if (error) toast.error("Erro ao excluir empresa");
+            else {
+              toast.success("Empresa excluída!");
+              onRefreshData();
+              onBack();
+            }
+          }}
+        >
+          <Trash2 className="w-4 h-4 mr-1" /> Excluir Empresa
+        </Button>
+      </div>
 
       <div className="flex items-center gap-3 mb-2">
         <Badge className={tierColors[company.tier]}>Tier {company.tier}</Badge>
