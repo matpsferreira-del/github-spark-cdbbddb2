@@ -1,121 +1,120 @@
 const SUPABASE_URL = "https://ywhxhkfgjkngafqkbfdw.supabase.co";
 const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inl3aHhoa2ZnamtuZ2FmcWtiZmR3Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQ0OTAwMzcsImV4cCI6MjA5MDA2NjAzN30.C-8mAq3Dv5p-W4nWxGxI0kO8miYOW0po2CWF8BUrPVk";
 
-function extractProfileData() {
-  let name = "";
-  let currentPosition = "";
-  let company = "";
-  const url = window.location.href.split("?")[0];
+function normalizeLines(text) {
+  return text
+    .split("\n")
+    .map((line) => line.trim())
+    .filter((line) => line.length > 0);
+}
 
-  // Name: use document.title (most reliable on LinkedIn)
-  name = document.title.replace(' | LinkedIn', '').trim();
+function extractName() {
+  let name = document.title.replace(" | LinkedIn", "").trim();
+
   if (!name) {
-    const sectionTitles = ['Sobre','Experiência','Formação acadêmica','Competências','Idiomas','Interesses','Atividades','Em destaque','Experience','About','Education','Skills'];
-    const h2 = Array.from(document.querySelectorAll('h2')).find(h => {
-      const t = h.innerText?.trim();
-      return t && t.length > 2 && !sectionTitles.includes(t);
+    const sectionTitles = [
+      "Sobre",
+      "Experiência",
+      "Formação acadêmica",
+      "Competências",
+      "Idiomas",
+      "Interesses",
+      "Atividades",
+      "Em destaque",
+      "Experience",
+      "About",
+      "Education",
+      "Skills",
+    ];
+
+    const h2 = Array.from(document.querySelectorAll("h2")).find((heading) => {
+      const text = heading.innerText?.trim();
+      return text && text.length > 2 && !sectionTitles.includes(text);
     });
+
     if (h2) name = h2.innerText.trim();
   }
+
   console.log("[Orion] Name extracted:", name);
+  return name;
+}
 
-  // Strategy 1: Find Experience section and look for current role
-  const experienceH2 = Array.from(document.querySelectorAll('h2')).find(
-    h => h.innerText?.trim() === 'Experiência' || h.innerText?.trim() === 'Experience'
+function getExperienceSection() {
+  const experienceH2 = Array.from(document.querySelectorAll("h2")).find(
+    (heading) => heading.innerText?.trim() === "Experiência" || heading.innerText?.trim() === "Experience"
   );
-  console.log("[Orion] Experience H2 found:", !!experienceH2);
 
-  // Try closest section first, then walk up the DOM
-  let section = experienceH2?.closest('section');
-  if (!section) section = experienceH2?.parentElement?.parentElement;
-  if (!section) section = experienceH2?.parentElement?.parentElement?.parentElement;
+  console.log("[Orion] Experience H2 found:", !!experienceH2);
+  return experienceH2?.closest("section") || experienceH2?.parentElement?.parentElement || null;
+}
+
+function extractCurrentExperience(section) {
+  const allUls = section.querySelectorAll("ul");
+  console.log("[Orion] ULs in experience section:", allUls.length);
+
+  for (const ul of allUls) {
+    const lis = Array.from(ul.querySelectorAll("li"));
+
+    for (const li of lis) {
+      const liText = li.innerText?.trim() || "";
+      const liLines = normalizeLines(liText);
+      const lowerText = liText.toLowerCase();
+      const isCurrent = lowerText.includes("o momento") || lowerText.includes("present");
+
+      if (!isCurrent) continue;
+      console.log("[Orion] Found current experience lines:", liLines.slice(0, 5));
+
+      const parent = ul.parentElement;
+      const siblings = parent ? Array.from(parent.children) : [];
+      const ulIdx = siblings.indexOf(ul);
+      let prevDiv = null;
+
+      for (let j = ulIdx - 1; j >= 0; j -= 1) {
+        if (siblings[j].tagName === "DIV" && siblings[j].innerText?.trim().length > 2) {
+          prevDiv = siblings[j];
+          break;
+        }
+      }
+
+      if (prevDiv) {
+        const divLines = normalizeLines(prevDiv.innerText);
+        const company = divLines[0] || "";
+        const currentPosition = liLines[0] || "";
+        console.log("[Orion] Grouped experience - Company:", company, "Position:", currentPosition);
+        return { currentPosition, company };
+      }
+
+      const currentPosition = liLines[0] || "";
+      const company = liLines.length > 1 ? liLines[1].split("·")[0].trim() : "";
+      console.log("[Orion] Single experience - Position:", currentPosition, "Company:", company);
+      return { currentPosition, company };
+    }
+  }
+
+  console.log("[Orion] No current role found inside the experience section");
+  return { currentPosition: "", company: "" };
+}
+
+function extractProfileData() {
+  const name = extractName();
+  const url = window.location.href.split("?")[0];
+  const section = getExperienceSection();
   console.log("[Orion] Experience section found:", !!section);
 
+  let currentPosition = "";
+  let company = "";
+
   if (section) {
-    const allUls = section.querySelectorAll('ul');
-    console.log("[Orion] ULs in experience section:", allUls.length);
-
-    for (const ul of allUls) {
-      const lis = Array.from(ul.querySelectorAll(':scope > li'));
-      // If no direct children, try all li
-      const liList = lis.length > 0 ? lis : Array.from(ul.querySelectorAll('li'));
-      
-      for (const li of liList) {
-        const liText = li.innerText?.trim() || '';
-        const liLines = liText.split('\n').map(l => l.trim()).filter(l => l.length > 0);
-        const isCurrent = liText.includes('o momento') || liText.toLowerCase().includes('present');
-        
-        if (!isCurrent) continue;
-        console.log("[Orion] Found current position li, lines:", liLines.slice(0, 5));
-
-        // Check if this is a grouped experience (company as parent div)
-        const parent = ul.parentElement;
-        const siblings = parent ? Array.from(parent.children) : [];
-        const ulIdx = siblings.indexOf(ul);
-        let prevDiv = null;
-        for (let j = ulIdx - 1; j >= 0; j--) {
-          if (siblings[j].tagName === 'DIV' && siblings[j].innerText?.trim().length > 2) {
-            prevDiv = siblings[j];
-            break;
-          }
-        }
-
-        if (prevDiv) {
-          // Grouped: company is in the div above the ul
-          const divLines = prevDiv.innerText.split('\n').map(l => l.trim()).filter(l => l.length > 0);
-          company = divLines[0];
-          currentPosition = liLines[0];
-          console.log("[Orion] Grouped experience - Company:", company, "Position:", currentPosition);
-        } else {
-          // Single: position is first line, company after
-          currentPosition = liLines[0];
-          // Company is usually the second line, sometimes with "· Full-time" etc
-          if (liLines.length > 1) {
-            company = liLines[1].split('·')[0].trim();
-          }
-          console.log("[Orion] Single experience - Position:", currentPosition, "Company:", company);
-        }
-        break;
-      }
-      if (currentPosition) break;
-    }
+    ({ currentPosition, company } = extractCurrentExperience(section));
   }
 
-  // Strategy 2: If no experience section found, try scanning all spans for current role patterns
-  if (!currentPosition || !company) {
-    console.log("[Orion] Strategy 1 failed, trying headline fallback...");
-    // The headline under the name often has "Cargo na Empresa" or "Cargo at Company"
-    const h1 = document.querySelector('h1');
-    if (h1) {
-      const headlineContainer = h1.parentElement?.parentElement;
-      if (headlineContainer) {
-        const headlineDiv = headlineContainer.querySelector('.text-body-medium');
-        if (headlineDiv) {
-          const headlineText = headlineDiv.innerText?.trim() || '';
-          console.log("[Orion] Headline text:", headlineText);
-          // Try "Cargo na Empresa" or "Role at Company"
-          const naMatch = headlineText.match(/^(.+?)\s+(?:na|no|em|at)\s+(.+)$/i);
-          if (naMatch) {
-            if (!currentPosition) currentPosition = naMatch[1].trim();
-            if (!company) company = naMatch[2].trim();
-          } else if (!currentPosition) {
-            currentPosition = headlineText;
-          }
-        }
-      }
-    }
-  }
+  console.log("[Orion] Final extracted data from experience section:", {
+    name,
+    currentPosition,
+    company,
+    url,
+  });
 
-  // Strategy 3: lazy-column fallback
-  if (!currentPosition || !company) {
-    console.log("[Orion] Trying lazy-column fallback...");
-    const lazy = document.querySelector('[data-testid="lazy-column"]');
-    const lazyLines = lazy ? lazy.innerText.split('\n').map(l => l.trim()).filter(l => l.length > 0) : [];
-    if (!currentPosition && lazyLines.length > 2) currentPosition = lazyLines[2];
-    if (!company && lazyLines.length > 6) company = lazyLines[6];
-  }
-
-  console.log("[Orion] Final extracted data:", { name, currentPosition, company, url });
   return { name, currentPosition, company, url };
 }
 
@@ -164,13 +163,12 @@ async function refreshSessionIfNeeded() {
   const stored = await chrome.storage.local.get(["session", "refreshToken"]);
   if (!stored.session || !stored.refreshToken) return null;
 
-  // Try to refresh the token
   try {
     const res = await fetch(`${SUPABASE_URL}/auth/v1/token?grant_type=refresh_token`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        "apikey": SUPABASE_ANON_KEY,
+        apikey: SUPABASE_ANON_KEY,
       },
       body: JSON.stringify({ refresh_token: stored.refreshToken }),
     });
@@ -201,19 +199,35 @@ async function handleSave() {
     const stored = await chrome.storage.local.get(["session", "planId", "refreshToken"]);
     if (!stored.session || !stored.planId) {
       btn.innerHTML = "❌ Faça login na extensão";
-      setTimeout(() => { btn.innerHTML = originalText; btn.disabled = false; btn.style.opacity = "1"; }, 3000);
+      setTimeout(() => {
+        btn.innerHTML = originalText;
+        btn.disabled = false;
+        btn.style.opacity = "1";
+      }, 3000);
       return;
     }
 
-    // Refresh token before saving
     const accessToken = await refreshSessionIfNeeded();
-
     const profile = extractProfileData();
     console.log("[Orion] Extracted profile:", profile);
 
     if (!profile.name) {
       btn.innerHTML = "❌ Nome não encontrado";
-      setTimeout(() => { btn.innerHTML = originalText; btn.disabled = false; btn.style.opacity = "1"; }, 3000);
+      setTimeout(() => {
+        btn.innerHTML = originalText;
+        btn.disabled = false;
+        btn.style.opacity = "1";
+      }, 3000);
+      return;
+    }
+
+    if (!profile.currentPosition || !profile.company) {
+      btn.innerHTML = "❌ Experiência atual não encontrada";
+      setTimeout(() => {
+        btn.innerHTML = originalText;
+        btn.disabled = false;
+        btn.style.opacity = "1";
+      }, 3000);
       return;
     }
 
@@ -221,15 +235,15 @@ async function handleSave() {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        "apikey": SUPABASE_ANON_KEY,
-        "Authorization": `Bearer ${accessToken || stored.session}`,
-        "Prefer": "return=minimal",
+        apikey: SUPABASE_ANON_KEY,
+        Authorization: `Bearer ${accessToken || stored.session}`,
+        Prefer: "return=minimal",
       },
       body: JSON.stringify({
         plan_id: stored.planId,
         name: profile.name,
-        current_position: profile.currentPosition || null,
-        company: profile.company || null,
+        current_position: profile.currentPosition,
+        company: profile.company,
         linkedin_url: profile.url,
         type: "other",
         tier: "A",
@@ -245,7 +259,11 @@ async function handleSave() {
       } else {
         btn.innerHTML = `❌ Erro ${res.status}`;
       }
-      setTimeout(() => { btn.innerHTML = originalText; btn.disabled = false; btn.style.opacity = "1"; }, 3000);
+      setTimeout(() => {
+        btn.innerHTML = originalText;
+        btn.disabled = false;
+        btn.style.opacity = "1";
+      }, 3000);
       return;
     }
 
@@ -260,46 +278,44 @@ async function handleSave() {
   } catch (err) {
     console.error("[Orion] Save error:", err);
     btn.innerHTML = "❌ Erro ao salvar";
-    setTimeout(() => { btn.innerHTML = originalText; btn.disabled = false; btn.style.opacity = "1"; }, 3000);
+    setTimeout(() => {
+      btn.innerHTML = originalText;
+      btn.disabled = false;
+      btn.style.opacity = "1";
+    }, 3000);
   }
 }
 
-// Wait for experience section to load before injecting
 function init() {
   if (!window.location.pathname.startsWith("/in/")) return;
 
   let attempts = 0;
   function tryInject() {
-    const expH2 = Array.from(document.querySelectorAll('h2')).find(
-      h => h.innerText?.trim() === 'Experiência' || h.innerText?.trim() === 'Experience'
-    );
-    if (expH2 || attempts >= 10) {
+    const section = getExperienceSection();
+    if (section || attempts >= 10) {
       createSaveButton();
     } else {
-      attempts++;
+      attempts += 1;
       setTimeout(tryInject, 1000);
     }
   }
   setTimeout(tryInject, 2000);
 }
 
-// Run on load
 if (document.readyState === "loading") {
   document.addEventListener("DOMContentLoaded", init);
 } else {
   init();
 }
 
-// Re-inject on SPA navigation
 let lastUrl = window.location.href;
 const observer = new MutationObserver(() => {
   if (window.location.href !== lastUrl) {
     lastUrl = window.location.href;
-    // Remove old button
     const old = document.getElementById("orion-save-btn");
     if (old) old.remove();
     if (window.location.pathname.startsWith("/in/")) {
-      setTimeout(createSaveButton, 1500);
+      setTimeout(init, 500);
     }
   }
 });
