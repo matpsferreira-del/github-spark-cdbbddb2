@@ -1,10 +1,11 @@
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { ChevronRight, Plus, Trash2 } from "lucide-react";
+import { ChevronRight, Plus, Trash2, Upload, Download } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
+import * as XLSX from "xlsx";
 import type { Company } from "@/types/mentorship";
 
 interface Props {
@@ -39,6 +40,8 @@ export default function CompanyTierSlide({ tier, companies, planId, onSelectComp
   const [adding, setAdding] = useState(false);
   const [newName, setNewName] = useState("");
   const [newSegment, setNewSegment] = useState("");
+  const [uploading, setUploading] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const addCompany = async () => {
     if (!newName.trim()) return toast.error("Nome da empresa é obrigatório");
@@ -66,14 +69,87 @@ export default function CompanyTierSlide({ tier, companies, planId, onSelectComp
     else onRefreshData();
   };
 
+  const downloadTemplate = () => {
+    const ws = XLSX.utils.aoa_to_sheet([
+      ["nome", "segmento"],
+      ["Google", "Tecnologia"],
+      ["Ambev", "Bebidas"],
+      ["Itaú", "Financeiro"],
+    ]);
+    ws["!cols"] = [{ wch: 30 }, { wch: 20 }];
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, `Tier ${tier}`);
+    XLSX.writeFile(wb, `modelo_tier_${tier.toLowerCase()}.xlsx`);
+  };
+
+  const handleUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setUploading(true);
+    try {
+      const data = await file.arrayBuffer();
+      const wb = XLSX.read(data);
+      const ws = wb.Sheets[wb.SheetNames[0]];
+      const rows = XLSX.utils.sheet_to_json<{ nome?: string; name?: string; segmento?: string; segment?: string }>(ws);
+
+      const parsed = rows
+        .map(r => ({
+          name: (r.nome || r.name || "").toString().trim(),
+          segment: (r.segmento || r.segment || "Geral").toString().trim(),
+        }))
+        .filter(r => r.name);
+
+      if (parsed.length === 0) {
+        toast.error("Planilha vazia ou sem coluna 'nome'");
+        return;
+      }
+
+      if (!confirm(`Isso substituirá todas as ${companies.length} empresas do Tier ${tier} por ${parsed.length} novas. Continuar?`)) return;
+
+      // Delete existing
+      if (companies.length > 0) {
+        const { error: delErr } = await supabase
+          .from("companies")
+          .delete()
+          .eq("plan_id", planId)
+          .eq("tier", tier);
+        if (delErr) throw delErr;
+      }
+
+      // Insert new
+      const { error: insErr } = await supabase.from("companies").insert(
+        parsed.map(c => ({ plan_id: planId, name: c.name, segment: c.segment, tier }))
+      );
+      if (insErr) throw insErr;
+
+      toast.success(`${parsed.length} empresas importadas para o Tier ${tier}!`);
+      onRefreshData();
+    } catch (err: any) {
+      toast.error(err.message || "Erro ao importar planilha");
+    } finally {
+      setUploading(false);
+      if (fileInputRef.current) fileInputRef.current.value = "";
+    }
+  };
+
   if (companies.length === 0 && !adding) {
     return (
       <div className="h-full flex flex-col items-center justify-center p-12">
         <p className="text-muted-foreground mb-4">Nenhuma empresa neste tier. Gere o plano na aba Dashboard.</p>
         {!isMentee && (
-          <Button size="sm" onClick={() => setAdding(true)}>
-            <Plus className="w-4 h-4 mr-1" /> Adicionar Empresa
-          </Button>
+          <div className="flex gap-2">
+            <Button size="sm" onClick={() => setAdding(true)}>
+              <Plus className="w-4 h-4 mr-1" /> Adicionar Empresa
+            </Button>
+            <Button size="sm" variant="outline" onClick={downloadTemplate}>
+              <Download className="w-4 h-4 mr-1" /> Modelo
+            </Button>
+            <Button size="sm" variant="outline" onClick={() => fileInputRef.current?.click()} disabled={uploading}>
+              <Upload className="w-4 h-4 mr-1" /> Importar
+            </Button>
+            <input ref={fileInputRef} type="file" accept=".xlsx,.xls,.csv" className="hidden" onChange={handleUpload} />
+          </div>
         )}
       </div>
     );
@@ -88,9 +164,18 @@ export default function CompanyTierSlide({ tier, companies, planId, onSelectComp
         </div>
         <div className="flex items-center gap-3">
           {!isMentee && (
-            <Button size="sm" variant="outline" onClick={() => setAdding(!adding)}>
-              <Plus className="w-4 h-4 mr-1" /> Adicionar
-            </Button>
+            <>
+              <Button size="sm" variant="outline" onClick={() => setAdding(!adding)}>
+                <Plus className="w-4 h-4 mr-1" /> Adicionar
+              </Button>
+              <Button size="sm" variant="outline" onClick={downloadTemplate}>
+                <Download className="w-4 h-4 mr-1" /> Modelo
+              </Button>
+              <Button size="sm" variant="outline" onClick={() => fileInputRef.current?.click()} disabled={uploading}>
+                <Upload className="w-4 h-4 mr-1" /> {uploading ? "Importando..." : "Importar"}
+              </Button>
+              <input ref={fileInputRef} type="file" accept=".xlsx,.xls,.csv" className="hidden" onChange={handleUpload} />
+            </>
           )}
           <div className="text-right">
             <p className="text-3xl font-bold text-foreground">{companies.length}</p>
