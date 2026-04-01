@@ -74,11 +74,29 @@ async function refreshSessionIfNeeded() {
   return stored.session;
 }
 
+async function fetchCompanies(planId, tier, accessToken) {
+  try {
+    const res = await fetch(
+      `${SUPABASE_URL}/rest/v1/companies?plan_id=eq.${planId}&tier=eq.${tier}&select=name&order=name.asc`,
+      {
+        headers: {
+          apikey: SUPABASE_ANON_KEY,
+          Authorization: `Bearer ${accessToken}`,
+        },
+      }
+    );
+    if (!res.ok) return [];
+    return (await res.json()).map(c => c.name);
+  } catch (e) {
+    console.error("[Orion] Fetch companies error:", e);
+    return [];
+  }
+}
+
 function showSaveForm() {
   if (document.getElementById("orion-save-form")) return;
 
   const profile = extractProfileData();
-  const stored = chrome.storage.local.get(["session", "planId"]);
 
   const overlay = document.createElement("div");
   overlay.id = "orion-save-form";
@@ -103,13 +121,20 @@ function showSaveForm() {
       <span style="font-size:15px;font-weight:700;color:#1a9bab;">🚀 Salvar no Orion</span>
       <button id="orion-close" style="background:none;border:none;color:#666;font-size:18px;cursor:pointer;">✕</button>
     </div>
+
     <label style="${labelStyle}">Nome</label>
     <input id="orion-f-name" style="${inputStyle}" value="${profile.name.replace(/"/g, '&quot;')}">
-    <label style="${labelStyle}">Cargo Atual</label>
-    <input id="orion-f-role" style="${inputStyle}" placeholder="Ex: Gerente de Vendas" value="${(profile.currentPosition || '').replace(/"/g, '&quot;')}">
-    <label style="${labelStyle}">Empresa Atual</label>
-    <input id="orion-f-company" style="${inputStyle}" placeholder="Ex: Empresa XYZ" value="${(profile.company || '').replace(/"/g, '&quot;')}">
+
     <div style="display:flex;gap:8px;margin-top:10px;">
+      <div style="flex:1;">
+        <label style="${labelStyle}">Tier</label>
+        <select id="orion-f-tier" style="${selectStyle}">
+          <option value="A">A</option>
+          <option value="B">B</option>
+          <option value="C">C</option>
+          <option value="Livre">Livre</option>
+        </select>
+      </div>
       <div style="flex:1;">
         <label style="${labelStyle}">Tipo</label>
         <select id="orion-f-type" style="${selectStyle}">
@@ -118,15 +143,18 @@ function showSaveForm() {
           <option value="other" selected>Outro</option>
         </select>
       </div>
-      <div style="flex:1;">
-        <label style="${labelStyle}">Tier</label>
-        <select id="orion-f-tier" style="${selectStyle}">
-          <option value="A" selected>A</option>
-          <option value="B">B</option>
-          <option value="C">C</option>
-        </select>
-      </div>
     </div>
+
+    <div id="orion-company-section">
+      <label style="${labelStyle}">Empresa</label>
+      <div id="orion-company-loading" style="font-size:12px;color:#666;margin-top:4px;">Carregando empresas...</div>
+      <select id="orion-f-company-select" style="${selectStyle};display:none;"></select>
+      <input id="orion-f-company-free" style="${inputStyle};display:none;" placeholder="Nome da empresa">
+    </div>
+
+    <label style="${labelStyle}">Cargo Atual</label>
+    <input id="orion-f-role" style="${inputStyle}" placeholder="Ex: Gerente de Vendas" value="${(profile.currentPosition || '').replace(/"/g, '&quot;')}">
+
     <div style="display:flex;gap:8px;margin-top:16px;">
       <button id="orion-cancel" style="flex:1;padding:10px;border:1px solid #333;border-radius:10px;background:transparent;color:#999;font-size:13px;font-weight:600;cursor:pointer;">Cancelar</button>
       <button id="orion-confirm" style="flex:1;padding:10px;border:none;border-radius:10px;background:linear-gradient(135deg,#1a9bab,#14707d);color:#fff;font-size:13px;font-weight:700;cursor:pointer;">Salvar</button>
@@ -139,6 +167,82 @@ function showSaveForm() {
   document.getElementById("orion-close").addEventListener("click", () => overlay.remove());
   document.getElementById("orion-cancel").addEventListener("click", () => overlay.remove());
   document.getElementById("orion-confirm").addEventListener("click", () => confirmSave(profile.url));
+
+  // Tier change handler
+  const tierSelect = document.getElementById("orion-f-tier");
+  tierSelect.addEventListener("change", () => loadCompaniesForTier(tierSelect.value, profile.company));
+
+  // Initial load
+  loadCompaniesForTier(tierSelect.value, profile.company);
+}
+
+async function loadCompaniesForTier(tier, prefilledCompany) {
+  const loading = document.getElementById("orion-company-loading");
+  const selectEl = document.getElementById("orion-f-company-select");
+  const freeEl = document.getElementById("orion-f-company-free");
+
+  if (tier === "Livre") {
+    loading.style.display = "none";
+    selectEl.style.display = "none";
+    freeEl.style.display = "block";
+    freeEl.value = prefilledCompany || "";
+    return;
+  }
+
+  loading.style.display = "block";
+  selectEl.style.display = "none";
+  freeEl.style.display = "none";
+
+  const stored = await chrome.storage.local.get(["session", "planId", "refreshToken"]);
+  if (!stored.session || !stored.planId) {
+    loading.textContent = "Faça login na extensão primeiro";
+    return;
+  }
+
+  const accessToken = await refreshSessionIfNeeded();
+  const companies = await fetchCompanies(stored.planId, tier, accessToken || stored.session);
+
+  loading.style.display = "none";
+
+  if (companies.length === 0) {
+    freeEl.style.display = "block";
+    freeEl.placeholder = "Nenhuma empresa neste tier — digite manualmente";
+    freeEl.value = prefilledCompany || "";
+    selectEl.style.display = "none";
+    return;
+  }
+
+  selectEl.innerHTML = `<option value="">Selecione...</option>` +
+    companies.map(c => `<option value="${c.replace(/"/g, '&quot;')}">${c}</option>`).join("") +
+    `<option value="__other__">Outra (digitar)</option>`;
+  selectEl.style.display = "block";
+  freeEl.style.display = "none";
+
+  // Pre-select if match
+  if (prefilledCompany) {
+    const match = companies.find(c => c.toLowerCase() === prefilledCompany.toLowerCase());
+    if (match) selectEl.value = match;
+  }
+
+  selectEl.onchange = () => {
+    if (selectEl.value === "__other__") {
+      selectEl.style.display = "none";
+      freeEl.style.display = "block";
+      freeEl.value = "";
+      freeEl.focus();
+    }
+  };
+}
+
+function getSelectedCompany() {
+  const tier = document.getElementById("orion-f-tier").value;
+  const selectEl = document.getElementById("orion-f-company-select");
+  const freeEl = document.getElementById("orion-f-company-free");
+
+  if (tier === "Livre" || freeEl.style.display !== "none") {
+    return freeEl.value.trim();
+  }
+  return selectEl.value === "__other__" ? "" : selectEl.value;
 }
 
 async function confirmSave(linkedinUrl) {
@@ -146,9 +250,10 @@ async function confirmSave(linkedinUrl) {
   const btn = document.getElementById("orion-confirm");
   const name = document.getElementById("orion-f-name").value.trim();
   const role = document.getElementById("orion-f-role").value.trim();
-  const company = document.getElementById("orion-f-company").value.trim();
+  const company = getSelectedCompany();
   const type = document.getElementById("orion-f-type").value;
-  const tier = document.getElementById("orion-f-tier").value;
+  const tierVal = document.getElementById("orion-f-tier").value;
+  const tier = tierVal === "Livre" ? "A" : tierVal;
 
   if (!name) { msg.textContent = "❌ Nome é obrigatório"; msg.style.color = "#e74c3c"; return; }
 
