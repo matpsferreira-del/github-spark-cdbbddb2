@@ -47,6 +47,10 @@ export default function CreatePlan() {
   const [addCityState, setAddCityState] = useState("");
   const [addCityCity, setAddCityCity] = useState("");
 
+  // Document upload state
+  const [pendingFiles, setPendingFiles] = useState<Record<string, File>>({});
+  const fileInputRefs = useRef<Record<string, HTMLInputElement | null>>({});
+
   if (!loading && !user) {
     navigate("/auth");
     return null;
