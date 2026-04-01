@@ -58,6 +58,10 @@ export default function PlanPresentation() {
   const [generating, setGenerating] = useState(false);
   const [selectedCompany, setSelectedCompany] = useState<Company | null>(null);
   const [linkCopied, setLinkCopied] = useState(false);
+  const [menteeDialogOpen, setMenteeDialogOpen] = useState(false);
+  const [menteeEmail, setMenteeEmail] = useState("");
+  const [menteePassword, setMenteePassword] = useState("");
+  const [creatingMentee, setCreatingMentee] = useState(false);
   const queryClient = useQueryClient();
 
   const { data: plan, isLoading } = useQuery({
