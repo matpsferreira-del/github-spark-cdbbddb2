@@ -283,10 +283,46 @@ export default function PlanPresentation() {
               <RefreshCw className="w-4 h-4 mr-1" /> Regenerar
             </Button>
           )}
-          <Button variant="ghost" size="sm" onClick={handleGenerateLink}>
-            {linkCopied ? <Check className="w-4 h-4 mr-1 text-green-500" /> : <Link2 className="w-4 h-4 mr-1" />}
-            {linkCopied ? "Copiado!" : "Link Mentorado"}
-          </Button>
+          <Dialog open={menteeDialogOpen} onOpenChange={setMenteeDialogOpen}>
+            <DialogTrigger asChild>
+              <Button variant="ghost" size="sm">
+                <UserPlus className="w-4 h-4 mr-1" /> Acesso Mentorado
+              </Button>
+            </DialogTrigger>
+            <DialogContent>
+              <DialogHeader>
+                <DialogTitle>Criar Acesso do Mentorado</DialogTitle>
+                <DialogDescription>
+                  Defina email e senha para o mentorado acessar seu plano
+                </DialogDescription>
+              </DialogHeader>
+              <div className="space-y-4">
+                <div>
+                  <Label>Email do Mentorado</Label>
+                  <Input
+                    type="email"
+                    value={menteeEmail}
+                    onChange={(e) => setMenteeEmail(e.target.value)}
+                    placeholder="mentorado@email.com"
+                  />
+                </div>
+                <div>
+                  <Label>Senha</Label>
+                  <Input
+                    type="password"
+                    value={menteePassword}
+                    onChange={(e) => setMenteePassword(e.target.value)}
+                    placeholder="Mínimo 6 caracteres"
+                    minLength={6}
+                  />
+                </div>
+                <Button onClick={handleCreateMenteeAccess} disabled={creatingMentee || !menteeEmail || !menteePassword} className="w-full">
+                  {creatingMentee && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
+                  Criar Acesso
+                </Button>
+              </div>
+            </DialogContent>
+          </Dialog>
           <Button variant="ghost" size="sm">
             <Download className="w-4 h-4 mr-1" /> PDF
           </Button>
