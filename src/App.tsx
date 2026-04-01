@@ -25,6 +25,7 @@ const App = () => (
           <Route path="/create" element={<CreatePlan />} />
           <Route path="/plan/:id" element={<PlanPresentation />} />
           <Route path="/mentee/:token" element={<MenteeView />} />
+          <Route path="/my-plan" element={<MyPlan />} />
           <Route path="*" element={<NotFound />} />
         </Routes>
       </BrowserRouter>

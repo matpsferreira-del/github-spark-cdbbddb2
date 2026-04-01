@@ -15,15 +15,20 @@ import type { MentorshipPlan } from "@/types/mentorship";
 
 export default function Home() {
   const { user, loading, isAuthenticated, signOut } = useAuth();
+  const { isMentee, isLoading: roleLoading } = useUserRole();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const [deletingId, setDeletingId] = useState<string | null>(null);
 
   useEffect(() => {
-    if (!loading && !isAuthenticated) {
-      navigate("/auth");
+    if (!loading && !roleLoading) {
+      if (!isAuthenticated) {
+        navigate("/auth");
+      } else if (isMentee) {
+        navigate("/my-plan");
+      }
     }
-  }, [loading, isAuthenticated, navigate]);
+  }, [loading, roleLoading, isAuthenticated, isMentee, navigate]);
 
   const { data: plans = [], isLoading: plansLoading } = useQuery({
     queryKey: ["plans"],
