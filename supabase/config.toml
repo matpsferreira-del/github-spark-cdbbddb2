@@ -1,1 +1,4 @@
 project_id = "ywhxhkfgjkngafqkbfdw"
+
+[functions.orion-bridge]
+verify_jwt = false
