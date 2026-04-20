@@ -25,6 +25,7 @@ export type Database = {
           plan_id: string
           relevance_score: number | null
           segment: string
+          source: string | null
           tier: string
           updated_at: string
         }
@@ -38,6 +39,7 @@ export type Database = {
           plan_id: string
           relevance_score?: number | null
           segment: string
+          source?: string | null
           tier: string
           updated_at?: string
         }
@@ -51,6 +53,7 @@ export type Database = {
           plan_id?: string
           relevance_score?: number | null
           segment?: string
+          source?: string | null
           tier?: string
           updated_at?: string
         }
@@ -74,6 +77,7 @@ export type Database = {
           name: string
           notes: string | null
           plan_id: string
+          source: string | null
           status: string
           tier: string
           type: string
@@ -88,6 +92,7 @@ export type Database = {
           name: string
           notes?: string | null
           plan_id: string
+          source?: string | null
           status?: string
           tier?: string
           type?: string
@@ -102,6 +107,7 @@ export type Database = {
           name?: string
           notes?: string | null
           plan_id?: string
+          source?: string | null
           status?: string
           tier?: string
           type?: string
@@ -253,6 +259,7 @@ export type Database = {
           linkedin_goals: Json
           mentee_email: string | null
           mentee_name: string
+          orionpipe_client_id: string | null
           region_preference: string
           state: string
           status: string
@@ -275,6 +282,7 @@ export type Database = {
           linkedin_goals?: Json
           mentee_email?: string | null
           mentee_name: string
+          orionpipe_client_id?: string | null
           region_preference?: string
           state: string
           status?: string
@@ -297,6 +305,7 @@ export type Database = {
           linkedin_goals?: Json
           mentee_email?: string | null
           mentee_name?: string
+          orionpipe_client_id?: string | null
           region_preference?: string
           state?: string
           status?: string
