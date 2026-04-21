@@ -9,6 +9,7 @@ import CreatePlan from "./pages/CreatePlan";
 import PlanPresentation from "./pages/PlanPresentation";
 import MenteeView from "./pages/MenteeView";
 import MyPlan from "./pages/MyPlan";
+import ChangePassword from "./pages/ChangePassword";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -26,6 +27,7 @@ const App = () => (
           <Route path="/plan/:id" element={<PlanPresentation />} />
           <Route path="/mentee/:token" element={<MenteeView />} />
           <Route path="/my-plan" element={<MyPlan />} />
+          <Route path="/change-password" element={<ChangePassword />} />
           <Route path="*" element={<NotFound />} />
         </Routes>
       </BrowserRouter>
