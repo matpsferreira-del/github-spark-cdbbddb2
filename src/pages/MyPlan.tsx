@@ -23,9 +23,10 @@ import DocumentsSlide from "@/components/plan/slides/DocumentsSlide";
 
 import {
   BarChart3, Search, Building2, Target, Linkedin, TrendingUp,
-  CheckCircle2, MessageSquare, Sparkles, Calendar, MapPin, FileText, LogOut
+  CheckCircle2, MessageSquare, Sparkles, Calendar, MapPin, FileText, LogOut, Download
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { toast } from "sonner";
 
 const slides = [
   { id: "dashboard", title: "Dashboard", icon: BarChart3 },
