@@ -22,13 +22,15 @@ export default function Auth() {
   // Redirect if already authenticated
   useEffect(() => {
     if (!authLoading && !roleLoading && isAuthenticated) {
-      if (role === "mentee") {
+      if (user?.user_metadata?.must_change_password) {
+        navigate("/change-password");
+      } else if (role === "mentee") {
         navigate("/my-plan");
       } else {
         navigate("/");
       }
     }
-  }, [authLoading, roleLoading, isAuthenticated, role, navigate]);
+  }, [authLoading, roleLoading, isAuthenticated, role, user, navigate]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
