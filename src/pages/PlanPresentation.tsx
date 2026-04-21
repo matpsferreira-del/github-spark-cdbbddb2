@@ -53,7 +53,7 @@ const slides = [
 export default function PlanPresentation() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const { user } = useAuth();
+  const { user, signOut } = useAuth();
   const [currentSlide, setCurrentSlide] = useState(0);
   const [generating, setGenerating] = useState(false);
   const [selectedCompany, setSelectedCompany] = useState<Company | null>(null);
@@ -165,7 +165,18 @@ export default function PlanPresentation() {
     }
     setCreatingMentee(true);
     try {
+      const { data: refreshedSession, error: refreshError } = await supabase.auth.refreshSession();
+      const accessToken = refreshedSession.session?.access_token;
+
+      if (refreshError || !accessToken) {
+        await signOut();
+        toast.error("Sua sessão expirou. Faça login novamente para criar o acesso do mentorado.");
+        navigate("/auth");
+        return;
+      }
+
       const { data, error } = await supabase.functions.invoke("register-mentee", {
+        headers: { Authorization: `Bearer ${accessToken}` },
         body: {
           email: menteeEmail,
           password: menteePassword,
@@ -173,8 +184,17 @@ export default function PlanPresentation() {
           mentee_name: plan.mentee_name,
         },
       });
-      if (error) throw error;
-      if (data?.error) throw new Error(data.error);
+      if (error) {
+        const message = error.message?.includes("401")
+          ? "Sua sessão expirou. Faça login novamente para criar o acesso do mentorado."
+          : error.message;
+        if (error.message?.includes("401")) {
+          await signOut();
+          navigate("/auth");
+        }
+        throw new Error(message || "Erro ao criar acesso do mentorado");
+      }
+      if (data?.error) throw new Error(data.details || data.error);
       toast.success(`Acesso criado! O mentorado pode fazer login com ${menteeEmail}`);
       setMenteeDialogOpen(false);
       setMenteeEmail("");
