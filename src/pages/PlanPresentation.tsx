@@ -53,7 +53,7 @@ const slides = [
 export default function PlanPresentation() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const { user } = useAuth();
+  const { user, signOut } = useAuth();
   const [currentSlide, setCurrentSlide] = useState(0);
   const [generating, setGenerating] = useState(false);
   const [selectedCompany, setSelectedCompany] = useState<Company | null>(null);
