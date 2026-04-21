@@ -55,8 +55,6 @@ Deno.serve(async (req) => {
       });
     }
 
-    const adminClient = createClient(supabaseUrl, serviceRoleKey);
-
     // Verify caller owns the plan
     const { data: planData, error: planError } = await adminClient
       .from("mentorship_plans")
