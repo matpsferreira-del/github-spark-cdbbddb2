@@ -402,12 +402,16 @@ Deno.serve(async (req) => {
 
   try {
     switch (action) {
+      case "create_plan":
+        return await createPlan(payload);
       case "activate_plan":
         return await activatePlan(payload);
       case "upsert_company":
         return await upsertCompany(payload);
       case "upsert_contact":
         return await upsertContact(payload);
+      case "upsert_market_job":
+        return await upsertMarketJob(payload);
       case "list_mentee_contributions":
         return await listMenteeContributions(payload);
       case "list_active_plans":
