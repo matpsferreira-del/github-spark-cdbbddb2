@@ -11,10 +11,12 @@ export function useUserRole() {
       const { data, error } = await supabase
         .from("user_roles")
         .select("role")
-        .eq("user_id", user!.id)
-        .single();
-      if (error) return "admin"; // Default to admin if no role found (existing users)
-      return data.role as "admin" | "mentee";
+        .eq("user_id", user!.id);
+      if (error || !data || data.length === 0) return "admin"; // fallback for legacy users
+      // Prioritize mentee role when both exist (defensive)
+      const roles = data.map((r) => r.role);
+      if (roles.includes("mentee")) return "mentee" as const;
+      return "admin" as const;
     },
     enabled: isAuthenticated && !!user,
   });
