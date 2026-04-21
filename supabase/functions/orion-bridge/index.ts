@@ -22,6 +22,140 @@ const supabase = createClient(
 // ---------- Action handlers ----------
 
 /**
+ * create_plan
+ * payload: {
+ *   mentee_name (required),
+ *   mentee_email?,
+ *   current_position?, current_area?,
+ *   state?, city?,
+ *   owner_user_id?  (Pathly admin user_id that will own the plan; falls back to first admin),
+ *   orionpipe_client_id?,
+ *   source?
+ * }
+ * Idempotent by mentee_email when provided.
+ */
+async function createPlan(payload: any) {
+  const {
+    mentee_name,
+    mentee_email = null,
+    current_position = "A definir",
+    current_area = "A definir",
+    state = "SP",
+    city = "São Paulo",
+    owner_user_id = null,
+    orionpipe_client_id = null,
+  } = payload ?? {};
+
+  if (!mentee_name) return json({ error: "mentee_name required" }, 400);
+
+  // Idempotency by email
+  if (mentee_email) {
+    const { data: existing } = await supabase
+      .from("mentorship_plans")
+      .select("*")
+      .eq("mentee_email", mentee_email)
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    if (existing) {
+      return json({ ok: true, plan: existing, action: "existing" });
+    }
+  }
+
+  // Resolve owner: explicit -> first admin in user_roles
+  let userId = owner_user_id;
+  if (!userId) {
+    const { data: admin } = await supabase
+      .from("user_roles")
+      .select("user_id")
+      .eq("role", "admin")
+      .limit(1)
+      .maybeSingle();
+    userId = admin?.user_id ?? null;
+  }
+  if (!userId) {
+    return json(
+      { error: "No owner_user_id provided and no admin user found to own the plan" },
+      400,
+    );
+  }
+
+  const insertRow: Record<string, unknown> = {
+    user_id: userId,
+    mentee_name,
+    mentee_email,
+    current_position,
+    current_area,
+    state,
+    city,
+    status: "completed",
+  };
+  if (orionpipe_client_id) insertRow.orionpipe_client_id = orionpipe_client_id;
+
+  const { data, error } = await supabase
+    .from("mentorship_plans")
+    .insert(insertRow)
+    .select()
+    .single();
+
+  if (error) return json({ error: error.message }, 400);
+  return json({ ok: true, plan: data, action: "created" });
+}
+
+/**
+ * upsert_market_job
+ * payload: { plan_id, job_title, company_name, location?, job_url?, source?, status?, notes? }
+ * Upsert by (plan_id, job_url) when URL present, else (plan_id, company_name + job_title) ilike.
+ */
+async function upsertMarketJob(payload: any) {
+  const {
+    plan_id,
+    job_title,
+    company_name,
+    location = null,
+    job_url = null,
+    source = "orion",
+    status = "identificada",
+    notes = null,
+  } = payload ?? {};
+
+  if (!plan_id || !job_title || !company_name) {
+    return json(
+      { error: "plan_id, job_title and company_name required" },
+      400,
+    );
+  }
+
+  let query = supabase.from("market_jobs").select("id").eq("plan_id", plan_id);
+  if (job_url) {
+    query = query.eq("job_url", job_url);
+  } else {
+    query = query.ilike("company_name", company_name).ilike("job_title", job_title);
+  }
+  const { data: existing, error: findErr } = await query.maybeSingle();
+  if (findErr) return json({ error: findErr.message }, 400);
+
+  if (existing) {
+    const { data, error } = await supabase
+      .from("market_jobs")
+      .update({ job_title, company_name, location, job_url, source, status, notes })
+      .eq("id", existing.id)
+      .select()
+      .single();
+    if (error) return json({ error: error.message }, 400);
+    return json({ ok: true, market_job: data, action: "updated" });
+  }
+
+  const { data, error } = await supabase
+    .from("market_jobs")
+    .insert({ plan_id, job_title, company_name, location, job_url, source, status, notes })
+    .select()
+    .single();
+  if (error) return json({ error: error.message }, 400);
+  return json({ ok: true, market_job: data, action: "created" });
+}
+
+/**
  * activate_plan
  * payload: { plan_id: string, orionpipe_client_id?: string }
  * Marks plan as active (status='completed') and stores Orion client id.
