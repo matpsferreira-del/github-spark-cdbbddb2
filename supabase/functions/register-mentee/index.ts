@@ -60,13 +60,25 @@ Deno.serve(async (req) => {
 
     if (existingUser) {
       menteeUserId = existingUser.id;
+      // Reset password to the new one provided by the mentor and force change on next login
+      await adminClient.auth.admin.updateUserById(menteeUserId, {
+        password,
+        user_metadata: {
+          ...(existingUser.user_metadata || {}),
+          name: mentee_name || existingUser.user_metadata?.name || email.split("@")[0],
+          must_change_password: true,
+        },
+      });
     } else {
-      // Create the mentee user account
+      // Create the mentee user account with must_change_password flag
       const { data: newUser, error: createError } = await adminClient.auth.admin.createUser({
         email,
         password,
         email_confirm: true,
-        user_metadata: { name: mentee_name || email.split("@")[0] },
+        user_metadata: {
+          name: mentee_name || email.split("@")[0],
+          must_change_password: true,
+        },
       });
 
       if (createError) {
@@ -77,7 +89,8 @@ Deno.serve(async (req) => {
       menteeUserId = newUser.user.id;
     }
 
-    // Ensure mentee role exists
+    // Ensure mentee role exists and remove any admin role to avoid conflicts
+    await adminClient.from("user_roles").delete().eq("user_id", menteeUserId).eq("role", "admin");
     await adminClient.from("user_roles").upsert(
       { user_id: menteeUserId, role: "mentee" },
       { onConflict: "user_id,role" }
