@@ -1,5 +1,9 @@
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2.100.0";
-import { corsHeaders } from "https://esm.sh/@supabase/supabase-js@2.100.0/cors";
+import { createClient } from "npm:@supabase/supabase-js@2";
+
+const corsHeaders = {
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+};
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
@@ -60,7 +64,7 @@ Deno.serve(async (req) => {
 
     if (existingUser) {
       menteeUserId = existingUser.id;
-      // Reset password to the new one provided by the mentor and force change on next login
+      // Reset password and force change on next login
       await adminClient.auth.admin.updateUserById(menteeUserId, {
         password,
         user_metadata: {
@@ -70,7 +74,6 @@ Deno.serve(async (req) => {
         },
       });
     } else {
-      // Create the mentee user account with must_change_password flag
       const { data: newUser, error: createError } = await adminClient.auth.admin.createUser({
         email,
         password,
