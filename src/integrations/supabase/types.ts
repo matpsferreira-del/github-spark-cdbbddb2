@@ -217,6 +217,59 @@ export type Database = {
           },
         ]
       }
+      market_jobs: {
+        Row: {
+          applied_at: string | null
+          company_name: string
+          created_at: string
+          id: string
+          job_title: string
+          job_url: string | null
+          location: string | null
+          notes: string | null
+          plan_id: string
+          source: string | null
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          applied_at?: string | null
+          company_name: string
+          created_at?: string
+          id?: string
+          job_title: string
+          job_url?: string | null
+          location?: string | null
+          notes?: string | null
+          plan_id: string
+          source?: string | null
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          applied_at?: string | null
+          company_name?: string
+          created_at?: string
+          id?: string
+          job_title?: string
+          job_url?: string | null
+          location?: string | null
+          notes?: string | null
+          plan_id?: string
+          source?: string | null
+          status?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "market_jobs_plan_id_fkey"
+            columns: ["plan_id"]
+            isOneToOne: false
+            referencedRelation: "mentorship_plans"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       mentee_plan_access: {
         Row: {
           created_at: string
