@@ -12,7 +12,7 @@ import {
   Loader2, ArrowLeft, Briefcase, Building2, MessageSquare,
   Sparkles, Calendar, Search, TrendingUp, CheckCircle2, BarChart3,
   MapPin, Target, FileText, Linkedin, RefreshCw, Link2, Download,
-  FileSpreadsheet, Copy, Check, UserPlus
+  FileSpreadsheet, Copy, Check, UserPlus, Puzzle
 } from "lucide-react";
 import { useState, useMemo } from "react";
 import { toast } from "sonner";
