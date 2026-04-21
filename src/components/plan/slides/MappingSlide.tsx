@@ -58,6 +58,22 @@ export default function MappingSlide({ plan, contacts, companies, onRefreshData 
 
   const doAddContact = async (formData: typeof form, companyOverride?: string) => {
     if (!formData.name) return toast.error("Nome é obrigatório");
+
+    // Check for duplicate by LinkedIn URL
+    if (formData.linkedin_url?.trim()) {
+      const normalizedUrl = formData.linkedin_url.trim().replace(/\/$/, "").toLowerCase();
+      const duplicate = contacts.find(c => {
+        if (!c.linkedin_url) return false;
+        return c.linkedin_url.trim().replace(/\/$/, "").toLowerCase() === normalizedUrl;
+      });
+      if (duplicate) {
+        toast.info(`Perfil já mapeado: ${duplicate.name}`);
+        setForm({ name: "", current_position: "", company: "", type: "decision_maker", tier: "A", linkedin_url: "" });
+        setAdding(false);
+        return;
+      }
+    }
+
     const { error } = await supabase.from("contact_mappings").insert({
       plan_id: plan.id,
       name: formData.name,
