@@ -12,7 +12,7 @@ import {
   Loader2, ArrowLeft, Briefcase, Building2, MessageSquare,
   Sparkles, Calendar, Search, TrendingUp, CheckCircle2, BarChart3,
   MapPin, Target, FileText, Linkedin, RefreshCw, Link2, Download,
-  FileSpreadsheet, Copy, Check, UserPlus
+  FileSpreadsheet, Copy, Check, UserPlus, Puzzle
 } from "lucide-react";
 import { useState, useMemo } from "react";
 import { toast } from "sonner";
@@ -32,6 +32,7 @@ import ContentSlide from "@/components/plan/slides/ContentSlide";
 import ScheduleSlide from "@/components/plan/slides/ScheduleSlide";
 import MappingSlide from "@/components/plan/slides/MappingSlide";
 import DocumentsSlide from "@/components/plan/slides/DocumentsSlide";
+import ExtensionGuideSlide from "@/components/plan/slides/ExtensionGuideSlide";
 
 const slides = [
   { id: "dashboard", title: "Dashboard", icon: BarChart3 },
@@ -47,6 +48,7 @@ const slides = [
   { id: "content", title: "Conteúdo", icon: Sparkles },
   { id: "schedule", title: "Cronograma", icon: Calendar },
   { id: "mapping", title: "Mapeamento", icon: MapPin },
+  { id: "extension", title: "Extensão", icon: Puzzle },
   { id: "documents", title: "Documentos", icon: FileText },
 ];
 
@@ -270,6 +272,7 @@ export default function PlanPresentation() {
       case "content": return <ContentSlide {...slideProps} />;
       case "schedule": return <ScheduleSlide {...slideProps} />;
       case "mapping": return <MappingSlide {...slideProps} />;
+      case "extension": return <ExtensionGuideSlide />;
       case "documents": return <DocumentsSlide {...slideProps} />;
       default: return null;
     }
