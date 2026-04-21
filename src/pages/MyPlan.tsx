@@ -20,10 +20,11 @@ import ContentSlide from "@/components/plan/slides/ContentSlide";
 import ScheduleSlide from "@/components/plan/slides/ScheduleSlide";
 import MappingSlide from "@/components/plan/slides/MappingSlide";
 import DocumentsSlide from "@/components/plan/slides/DocumentsSlide";
+import ExtensionGuideSlide from "@/components/plan/slides/ExtensionGuideSlide";
 
 import {
   BarChart3, Search, Building2, Target, Linkedin, TrendingUp,
-  CheckCircle2, MessageSquare, Sparkles, Calendar, MapPin, FileText, LogOut, Download
+  CheckCircle2, MessageSquare, Sparkles, Calendar, MapPin, FileText, LogOut, Download, Puzzle
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
@@ -42,6 +43,7 @@ const slides = [
   { id: "content", title: "Conteúdo", icon: Sparkles },
   { id: "schedule", title: "Cronograma", icon: Calendar },
   { id: "mapping", title: "Mapeamento", icon: MapPin },
+  { id: "extension", title: "Extensão", icon: Puzzle },
   { id: "documents", title: "Documentos", icon: FileText },
 ];
 
@@ -220,6 +222,7 @@ export default function MyPlan() {
       case "content": return <ContentSlide {...slideProps} />;
       case "schedule": return <ScheduleSlide {...slideProps} />;
       case "mapping": return <MappingSlide {...slideProps} />;
+      case "extension": return <ExtensionGuideSlide />;
       case "documents": return <DocumentsSlide {...slideProps} />;
       default: return null;
     }
