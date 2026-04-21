@@ -241,9 +241,25 @@ export default function MyPlan() {
           <span className="text-muted-foreground">•</span>
           <span className="text-muted-foreground">{plan.city}, {plan.state}</span>
         </div>
-        <Button variant="ghost" size="sm" onClick={handleSignOut}>
-          <LogOut className="w-4 h-4 mr-1" /> Sair
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button variant="ghost" size="sm" onClick={() => {
+            fetch("/orion-linkedin-extension.zip")
+              .then(res => { if (!res.ok) throw new Error("Download failed"); return res.blob(); })
+              .then(blob => {
+                const a = document.createElement("a");
+                a.href = URL.createObjectURL(blob);
+                a.download = "orion-linkedin-extension.zip";
+                a.click();
+                URL.revokeObjectURL(a.href);
+              })
+              .catch(() => toast.error("Erro ao baixar extensão"));
+          }}>
+            <Download className="w-4 h-4 mr-1" /> Extensão Chrome
+          </Button>
+          <Button variant="ghost" size="sm" onClick={handleSignOut}>
+            <LogOut className="w-4 h-4 mr-1" /> Sair
+          </Button>
+        </div>
       </div>
 
       {/* Main Content */}
