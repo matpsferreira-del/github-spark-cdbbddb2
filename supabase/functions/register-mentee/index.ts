@@ -20,16 +20,30 @@ Deno.serve(async (req) => {
 
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-    const anonKey = Deno.env.get("SUPABASE_ANON_KEY")!;
 
-    // Verify caller is authenticated admin
-    const userClient = createClient(supabaseUrl, anonKey, {
-      global: { headers: { Authorization: authHeader } },
-    });
-    const { data: { user: caller }, error: authError } = await userClient.auth.getUser();
+    const adminClient = createClient(supabaseUrl, serviceRoleKey);
+
+    // Verify caller using service role + token (avoids anon-key edge cases)
+    const token = authHeader.replace("Bearer ", "");
+    const { data: { user: caller }, error: authError } = await adminClient.auth.getUser(token);
     if (authError || !caller) {
-      return new Response(JSON.stringify({ error: "Unauthorized" }), {
+      console.error("Auth error:", authError);
+      return new Response(JSON.stringify({ error: "Unauthorized", details: authError?.message }), {
         status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    // Verify caller is admin
+    const { data: roleData } = await adminClient
+      .from("user_roles")
+      .select("role")
+      .eq("user_id", caller.id)
+      .eq("role", "admin")
+      .maybeSingle();
+
+    if (!roleData) {
+      return new Response(JSON.stringify({ error: "Forbidden: admin role required" }), {
+        status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
 
@@ -40,8 +54,6 @@ Deno.serve(async (req) => {
         status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
-
-    const adminClient = createClient(supabaseUrl, serviceRoleKey);
 
     // Verify caller owns the plan
     const { data: planData, error: planError } = await adminClient
@@ -56,9 +68,16 @@ Deno.serve(async (req) => {
       });
     }
 
-    // Check if user already exists
-    const { data: existingUsers } = await adminClient.auth.admin.listUsers();
-    const existingUser = existingUsers?.users?.find((u: any) => u.email === email);
+    // Check if user already exists (paginate through all users)
+    let existingUser: any = null;
+    let page = 1;
+    while (true) {
+      const { data: pageData } = await adminClient.auth.admin.listUsers({ page, perPage: 1000 });
+      const found = pageData?.users?.find((u: any) => u.email === email);
+      if (found) { existingUser = found; break; }
+      if (!pageData?.users || pageData.users.length < 1000) break;
+      page++;
+    }
 
     let menteeUserId: string;
 
