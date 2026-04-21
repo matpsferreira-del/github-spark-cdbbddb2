@@ -68,9 +68,16 @@ Deno.serve(async (req) => {
       });
     }
 
-    // Check if user already exists
-    const { data: existingUsers } = await adminClient.auth.admin.listUsers();
-    const existingUser = existingUsers?.users?.find((u: any) => u.email === email);
+    // Check if user already exists (paginate through all users)
+    let existingUser: any = null;
+    let page = 1;
+    while (true) {
+      const { data: pageData } = await adminClient.auth.admin.listUsers({ page, perPage: 1000 });
+      const found = pageData?.users?.find((u: any) => u.email === email);
+      if (found) { existingUser = found; break; }
+      if (!pageData?.users || pageData.users.length < 1000) break;
+      page++;
+    }
 
     let menteeUserId: string;
 
