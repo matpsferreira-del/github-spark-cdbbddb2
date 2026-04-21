@@ -10,7 +10,7 @@ import { toast } from "sonner";
 import { Loader2 } from "lucide-react";
 
 export default function Auth() {
-  const { signIn, signUp, isAuthenticated, loading: authLoading } = useAuth();
+  const { signIn, signUp, isAuthenticated, loading: authLoading, user } = useAuth();
   const { role, isLoading: roleLoading } = useUserRole();
   const navigate = useNavigate();
   const [isLogin, setIsLogin] = useState(true);

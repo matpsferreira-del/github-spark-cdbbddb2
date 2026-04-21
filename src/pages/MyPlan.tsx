@@ -51,6 +51,13 @@ export default function MyPlan() {
   const [selectedCompany, setSelectedCompany] = useState<Company | null>(null);
   const queryClient = useQueryClient();
 
+  // Force password change on first login
+  useEffect(() => {
+    if (user?.user_metadata?.must_change_password) {
+      navigate("/change-password");
+    }
+  }, [user, navigate]);
+
   // Get the mentee's plan via mentee_plan_access
   const { data: planAccess, isLoading: accessLoading } = useQuery({
     queryKey: ["mentee-plan-access", user?.id],
