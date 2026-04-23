@@ -1,3 +1,14 @@
+// supabase/functions/orion-bridge/index.ts (Pathly project)
+// Bridge HTTP entre Orion e Pathly. Cole este arquivo no projeto Pathly
+// substituindo o conteúdo atual de supabase/functions/orion-bridge/index.ts.
+//
+// MUDANÇA PRINCIPAL nesta versão:
+// - createPlan agora aceita e PERSISTE os campos extras enviados pelo Orion:
+//   employment_status (ignorado, não há coluna), work_model, state, city,
+//   region_preference, cities_of_interest (=> available_cities),
+//   target_role (=> target_positions jsonb + wants_career_change quando difere
+//   de current_position).
+
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
 
 const corsHeaders = {
@@ -19,20 +30,75 @@ const supabase = createClient(
   { auth: { persistSession: false } },
 );
 
+// ---------- helpers ----------
+
+const ALLOWED_REGION = new Set(["same_region", "open_to_change"]);
+const ALLOWED_WORK_MODEL = new Set(["presencial", "hibrido", "remoto"]);
+
+function normalizeRegion(value: unknown): string {
+  if (typeof value !== "string") return "same_region";
+  if (ALLOWED_REGION.has(value)) return value;
+  // Aceita também o vocabulário antigo do Orion como fallback
+  if (value === "mesma_regiao") return "same_region";
+  if (value === "outras_regioes" || value === "indiferente" || value === "any" || value === "other_regions") {
+    return "open_to_change";
+  }
+  return "same_region";
+}
+
+function normalizeWorkModel(value: unknown): string {
+  if (typeof value !== "string") return "hibrido";
+  if (ALLOWED_WORK_MODEL.has(value)) return value;
+  // Fallbacks de variações
+  if (value === "on_site") return "presencial";
+  if (value === "hybrid") return "hibrido";
+  if (value === "remote") return "remoto";
+  return "hibrido";
+}
+
+function normalizeState(value: unknown): string {
+  if (typeof value !== "string") return "SP";
+  const trimmed = value.trim().toUpperCase();
+  if (trimmed.length === 2) return trimmed;
+  if (trimmed.length > 2) return trimmed.slice(0, 2);
+  return "SP";
+}
+
+function normalizeCitiesOfInterest(value: unknown): unknown[] {
+  if (!Array.isArray(value)) return [];
+  return value
+    .filter((item) => item && typeof item === "object")
+    .map((item: any) => ({
+      estado: typeof item.estado === "string" ? item.estado : "",
+      cidade: typeof item.cidade === "string" ? item.cidade : "",
+    }))
+    .filter((item) => item.estado && item.cidade);
+}
+
+function normalizeTargetPositions(targetRole: unknown): unknown[] {
+  if (typeof targetRole !== "string") return [];
+  const role = targetRole.trim();
+  if (!role) return [];
+  return [{ title: role, type: "target_position" }];
+}
+
 // ---------- Action handlers ----------
 
 /**
  * create_plan
- * payload: {
- *   mentee_name (required),
- *   mentee_email?,
- *   current_position?, current_area?,
- *   state?, city?,
- *   owner_user_id?  (Pathly admin user_id that will own the plan; falls back to first admin),
- *   orionpipe_client_id?,
- *   source?
- * }
- * Idempotent by mentee_email when provided.
+ * payload (todos opcionais salvo mentee_name):
+ *   mentee_name (required)
+ *   mentee_email
+ *   current_position, current_area
+ *   state, city
+ *   target_role, target_location
+ *   employment_status        // não persistido (sem coluna no schema atual)
+ *   work_model               // presencial | hibrido | remoto
+ *   region_preference        // same_region | open_to_change
+ *   cities_of_interest       // [{ estado, cidade }, ...] => available_cities jsonb
+ *   owner_user_id, orionpipe_client_id, source
+ *
+ * Idempotente por mentee_email quando informado.
  */
 async function createPlan(payload: any) {
   const {
@@ -40,8 +106,12 @@ async function createPlan(payload: any) {
     mentee_email = null,
     current_position = "A definir",
     current_area = "A definir",
-    state = "SP",
-    city = "São Paulo",
+    target_role = null,
+    state,
+    city,
+    work_model,
+    region_preference,
+    cities_of_interest,
     owner_user_id = null,
     orionpipe_client_id = null,
   } = payload ?? {};
@@ -80,14 +150,30 @@ async function createPlan(payload: any) {
     );
   }
 
+  const normalizedState = normalizeState(state);
+  const normalizedCity = (typeof city === "string" && city.trim()) || "São Paulo";
+  const normalizedWorkModel = normalizeWorkModel(work_model);
+  const normalizedRegion = normalizeRegion(region_preference);
+  const availableCities = normalizeCitiesOfInterest(cities_of_interest);
+  const targetPositions = normalizeTargetPositions(target_role);
+  const wantsCareerChange =
+    typeof target_role === "string" &&
+    target_role.trim().length > 0 &&
+    target_role.trim().toLowerCase() !== String(current_position ?? "").trim().toLowerCase();
+
   const insertRow: Record<string, unknown> = {
     user_id: userId,
     mentee_name,
     mentee_email,
     current_position,
     current_area,
-    state,
-    city,
+    state: normalizedState,
+    city: normalizedCity,
+    work_model: normalizedWorkModel,
+    region_preference: normalizedRegion,
+    available_cities: availableCities,
+    target_positions: targetPositions,
+    wants_career_change: wantsCareerChange,
     status: "completed",
   };
   if (orionpipe_client_id) insertRow.orionpipe_client_id = orionpipe_client_id;
@@ -104,8 +190,6 @@ async function createPlan(payload: any) {
 
 /**
  * upsert_market_job
- * payload: { plan_id, job_title, company_name, location?, job_url?, source?, status?, notes? }
- * Upsert by (plan_id, job_url) when URL present, else (plan_id, company_name + job_title) ilike.
  */
 async function upsertMarketJob(payload: any) {
   const {
@@ -157,8 +241,6 @@ async function upsertMarketJob(payload: any) {
 
 /**
  * activate_plan
- * payload: { plan_id: string, orionpipe_client_id?: string }
- * Marks plan as active (status='completed') and stores Orion client id.
  */
 async function activatePlan(payload: any) {
   const { plan_id, orionpipe_client_id } = payload ?? {};
@@ -181,8 +263,6 @@ async function activatePlan(payload: any) {
 
 /**
  * upsert_company
- * payload: { plan_id, name, segment?, tier?, has_openings?, relevance_score?, notes?, source? }
- * Upsert by (plan_id, name) — case-insensitive match.
  */
 async function upsertCompany(payload: any) {
   const {
@@ -242,8 +322,6 @@ async function upsertCompany(payload: any) {
 
 /**
  * upsert_contact
- * payload: { plan_id, name, current_position?, company?, linkedin_url?, type?, tier?, status?, notes?, source? }
- * Upsert by (plan_id, linkedin_url) when present, else by (plan_id, name + company).
  */
 async function upsertContact(payload: any) {
   const {
@@ -316,8 +394,6 @@ async function upsertContact(payload: any) {
 
 /**
  * list_mentee_contributions
- * payload: { plan_id?: string, since?: ISO timestamp, source?: string }
- * Returns companies + contacts contributed (default source='extension').
  */
 async function listMenteeContributions(payload: any) {
   const { plan_id, since, source = "extension" } = payload ?? {};
@@ -353,15 +429,13 @@ async function listMenteeContributions(payload: any) {
 
 /**
  * list_active_plans
- * payload: { status?: string }  default 'completed'
- * Returns plans (id, mentee_name, mentee_email, status, orionpipe_client_id, updated_at).
  */
 async function listActivePlans(payload: any) {
   const { status = "completed" } = payload ?? {};
   const { data, error } = await supabase
     .from("mentorship_plans")
     .select(
-      "id, mentee_name, mentee_email, status, orionpipe_client_id, current_position, current_area, state, city, updated_at, created_at",
+      "id, mentee_name, mentee_email, status, orionpipe_client_id, current_position, current_area, state, city, work_model, region_preference, available_cities, target_positions, updated_at, created_at",
     )
     .eq("status", status)
     .order("updated_at", { ascending: false });
