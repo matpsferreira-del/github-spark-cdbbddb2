@@ -615,6 +615,8 @@ Deno.serve(async (req) => {
         return await createPlan(payload);
       case "activate_plan":
         return await activatePlan(payload);
+      case "update_plan":
+        return await updatePlan(payload);
       case "upsert_company":
         return await upsertCompany(payload);
       case "upsert_contact":
