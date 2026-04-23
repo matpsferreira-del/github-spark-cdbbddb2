@@ -393,6 +393,61 @@ async function upsertContact(payload: any) {
 }
 
 /**
+ * list_plan_data
+ * Retorna todos os dados do plano para o pull reverso Orion -> Pathly.
+ */
+async function listPlanData(payload: any) {
+  const { plan_id, since, source = null } = payload ?? {};
+
+  if (!plan_id) return json({ error: "plan_id required" }, 400);
+
+  let companiesQ = supabase
+    .from("companies")
+    .select("*")
+    .eq("plan_id", plan_id)
+    .order("created_at", { ascending: false });
+  let contactsQ = supabase
+    .from("contact_mappings")
+    .select("*")
+    .eq("plan_id", plan_id)
+    .order("created_at", { ascending: false });
+  let jobsQ = supabase
+    .from("market_jobs")
+    .select("*")
+    .eq("plan_id", plan_id)
+    .order("created_at", { ascending: false });
+
+  if (source) {
+    companiesQ = companiesQ.eq("source", source);
+    contactsQ = contactsQ.eq("source", source);
+    jobsQ = jobsQ.eq("source", source);
+  }
+
+  if (since) {
+    companiesQ = companiesQ.gte("created_at", since);
+    contactsQ = contactsQ.gte("created_at", since);
+    jobsQ = jobsQ.gte("created_at", since);
+  }
+
+  const [
+    { data: companies, error: companiesError },
+    { data: contacts, error: contactsError },
+    { data: marketJobs, error: jobsError },
+  ] = await Promise.all([companiesQ, contactsQ, jobsQ]);
+
+  if (companiesError) return json({ error: companiesError.message }, 400);
+  if (contactsError) return json({ error: contactsError.message }, 400);
+  if (jobsError) return json({ error: jobsError.message }, 400);
+
+  return json({
+    ok: true,
+    companies: companies ?? [],
+    contacts: contacts ?? [],
+    market_jobs: marketJobs ?? [],
+  });
+}
+
+/**
  * list_mentee_contributions
  */
 async function listMenteeContributions(payload: any) {
@@ -486,6 +541,8 @@ Deno.serve(async (req) => {
         return await upsertContact(payload);
       case "upsert_market_job":
         return await upsertMarketJob(payload);
+      case "list_plan_data":
+        return await listPlanData(payload);
       case "list_mentee_contributions":
         return await listMenteeContributions(payload);
       case "list_active_plans":
