@@ -262,6 +262,86 @@ async function activatePlan(payload: any) {
 }
 
 /**
+ * update_plan
+ * Atualiza um mentorship_plan existente com dados vindos do Orion.
+ * Só aplica os campos presentes no payload (não sobrescreve com null).
+ */
+async function updatePlan(payload: any) {
+  const {
+    plan_id,
+    mentee_name,
+    mentee_email,
+    current_position,
+    current_area,
+    target_role,
+    state,
+    city,
+    work_model,
+    region_preference,
+    cities_of_interest,
+    orionpipe_client_id,
+  } = payload ?? {};
+
+  if (!plan_id) return json({ error: "plan_id required" }, 400);
+
+  const { data: existing, error: fetchErr } = await supabase
+    .from("mentorship_plans")
+    .select("id, current_position")
+    .eq("id", plan_id)
+    .maybeSingle();
+
+  if (fetchErr) return json({ error: fetchErr.message }, 400);
+  if (!existing) return json({ error: "plan not found" }, 404);
+
+  const update: Record<string, unknown> = {};
+
+  if (typeof mentee_name === "string" && mentee_name.trim()) update.mentee_name = mentee_name;
+  if (mentee_email !== undefined) update.mentee_email = mentee_email;
+  if (typeof current_position === "string" && current_position.trim()) update.current_position = current_position;
+  if (typeof current_area === "string" && current_area.trim()) update.current_area = current_area;
+  if (work_model !== undefined && work_model !== null) update.work_model = normalizeWorkModel(work_model);
+  if (state !== undefined && state !== null) update.state = normalizeState(state);
+  if (typeof city === "string" && city.trim()) update.city = city;
+  if (region_preference !== undefined && region_preference !== null) {
+    update.region_preference = normalizeRegion(region_preference);
+  }
+  if (cities_of_interest !== undefined) {
+    update.available_cities = normalizeCitiesOfInterest(cities_of_interest);
+  }
+  if (orionpipe_client_id) update.orionpipe_client_id = orionpipe_client_id;
+
+  // target_role -> target_positions + wants_career_change
+  if (typeof target_role === "string") {
+    const role = target_role.trim();
+    const effectiveCurrent = (typeof current_position === "string" && current_position.trim())
+      ? current_position
+      : (existing.current_position ?? "");
+    if (role) {
+      update.target_positions = normalizeTargetPositions(role);
+      update.wants_career_change = role.toLowerCase() !== String(effectiveCurrent).trim().toLowerCase();
+    } else {
+      update.target_positions = [];
+      update.wants_career_change = false;
+    }
+  }
+
+  if (Object.keys(update).length === 0) {
+    return json({ ok: true, plan: existing, action: "noop" });
+  }
+
+  const { data, error } = await supabase
+    .from("mentorship_plans")
+    .update(update)
+    .eq("id", plan_id)
+    .select()
+    .maybeSingle();
+
+  if (error) return json({ error: error.message }, 400);
+  if (!data) return json({ error: "plan not found" }, 404);
+  return json({ ok: true, plan: data, action: "updated" });
+}
+
+/**
  * upsert_company
  */
 async function upsertCompany(payload: any) {
@@ -535,6 +615,8 @@ Deno.serve(async (req) => {
         return await createPlan(payload);
       case "activate_plan":
         return await activatePlan(payload);
+      case "update_plan":
+        return await updatePlan(payload);
       case "upsert_company":
         return await upsertCompany(payload);
       case "upsert_contact":
