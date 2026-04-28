@@ -1,400 +1,419 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.100.0";
+import Anthropic from "https://esm.sh/@anthropic-ai/sdk@0.32.1";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers":
-    "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
+    "authorization, x-client-info, apikey, content-type",
 };
 
-interface Message {
-  role: "user" | "assistant" | "system";
-  content: string;
-}
+const anthropic = new Anthropic({ apiKey: Deno.env.get("ANTHROPIC_API_KEY") });
 
-async function callAI(messages: Message[], tools?: any[], toolChoice?: any) {
-  const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
-  if (!LOVABLE_API_KEY) throw new Error("LOVABLE_API_KEY not configured");
+// ─── Tool schemas (shared, cached) ────────────────────────────────────────────
 
-  const body: any = { model: "google/gemini-3-flash-preview", messages };
-  if (tools) body.tools = tools;
-  if (toolChoice) body.tool_choice = toolChoice;
-
-  const resp = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${LOVABLE_API_KEY}`,
-      "Content-Type": "application/json",
+const TOOLS: Anthropic.Tool[] = [
+  {
+    name: "generate_companies",
+    description: "Gera empresas organizadas por tier para o mapeamento de recolocação",
+    input_schema: {
+      type: "object",
+      properties: {
+        companies: {
+          type: "array",
+          items: {
+            type: "object",
+            properties: {
+              name: { type: "string" },
+              segment: { type: "string" },
+              tier: { type: "string", enum: ["A", "B", "C"] },
+              has_openings: { type: "boolean" },
+              relevance_score: { type: "integer", minimum: 0, maximum: 100 },
+              notes: { type: "string" },
+            },
+            required: ["name", "segment", "tier", "has_openings", "relevance_score"],
+          },
+        },
+      },
+      required: ["companies"],
     },
-    body: JSON.stringify(body),
+  },
+  {
+    name: "generate_job_titles",
+    description: "Gera variações de cargo em 3 categorias para busca e networking",
+    input_schema: {
+      type: "object",
+      properties: {
+        titles: {
+          type: "array",
+          items: {
+            type: "object",
+            properties: {
+              title: { type: "string" },
+              type: { type: "string", enum: ["search_variation", "decision_maker", "hr_recruiter"] },
+            },
+            required: ["title", "type"],
+          },
+        },
+      },
+      required: ["titles"],
+    },
+  },
+  {
+    name: "generate_messages",
+    description: "Gera 6 templates de mensagem para LinkedIn",
+    input_schema: {
+      type: "object",
+      properties: {
+        templates: {
+          type: "array",
+          items: {
+            type: "object",
+            properties: {
+              type: { type: "string", enum: ["hr_with_opening", "hr_without_opening", "dm_with_opening", "dm_without_opening", "follow_up", "post_interview"] },
+              template: { type: "string" },
+            },
+            required: ["type", "template"],
+          },
+        },
+      },
+      required: ["templates"],
+    },
+  },
+  {
+    name: "generate_schedule",
+    description: "Gera cronograma de 4 semanas com atividades diárias",
+    input_schema: {
+      type: "object",
+      properties: {
+        activities: {
+          type: "array",
+          items: {
+            type: "object",
+            properties: {
+              week_number: { type: "integer", minimum: 1, maximum: 4 },
+              day_of_week: { type: "string", enum: ["monday", "tuesday", "wednesday", "thursday", "friday"] },
+              activity: { type: "string" },
+              category: { type: "string", enum: ["linkedin", "networking", "content", "research", "applications"] },
+            },
+            required: ["week_number", "day_of_week", "activity", "category"],
+          },
+        },
+      },
+      required: ["activities"],
+    },
+  },
+  {
+    name: "generate_diagnosis",
+    description: "Gera análise SWOT, passos diários, metas mensais e dicas de LinkedIn",
+    input_schema: {
+      type: "object",
+      properties: {
+        swot: {
+          type: "object",
+          properties: {
+            summary: { type: "string" },
+            strengths: { type: "array", items: { type: "string" } },
+            weaknesses: { type: "array", items: { type: "string" } },
+            opportunities: { type: "array", items: { type: "string" } },
+            threats: { type: "array", items: { type: "string" } },
+          },
+          required: ["summary", "strengths", "weaknesses", "opportunities", "threats"],
+        },
+        steps: {
+          type: "array",
+          items: {
+            type: "object",
+            properties: {
+              step: { type: "integer" },
+              title: { type: "string" },
+              description: { type: "string" },
+              tip: { type: "string" },
+              time: { type: "string" },
+            },
+            required: ["step", "title", "description", "tip", "time"],
+          },
+        },
+        month_goals: {
+          type: "object",
+          properties: {
+            month1: { type: "array", items: { type: "string" } },
+            month2: { type: "array", items: { type: "string" } },
+            month3: { type: "array", items: { type: "string" } },
+          },
+          required: ["month1", "month2", "month3"],
+        },
+        linkedin_tips: { type: "array", items: { type: "string" } },
+      },
+      required: ["swot", "steps", "month_goals", "linkedin_tips"],
+    },
+  },
+  {
+    name: "generate_content_prompts",
+    description: "Gera prompts prontos para criação de posts no LinkedIn",
+    input_schema: {
+      type: "object",
+      properties: {
+        prompts: {
+          type: "array",
+          items: {
+            type: "object",
+            properties: {
+              title: { type: "string" },
+              prompt: { type: "string" },
+            },
+            required: ["title", "prompt"],
+          },
+        },
+      },
+      required: ["prompts"],
+    },
+  },
+  {
+    name: "generate_linkedin_profile",
+    description: "Gera seções otimizadas do perfil LinkedIn",
+    input_schema: {
+      type: "object",
+      properties: {
+        sections: {
+          type: "array",
+          items: {
+            type: "object",
+            properties: {
+              key: { type: "string", enum: ["headline", "about", "experience", "skills"] },
+              title: { type: "string" },
+              ideal_text: { type: "string" },
+              explanation: { type: "string" },
+            },
+            required: ["key", "title", "ideal_text", "explanation"],
+          },
+        },
+      },
+      required: ["sections"],
+    },
+  },
+];
+
+// ─── Shared system prompt (cached) ────────────────────────────────────────────
+
+const SYSTEM_PROMPT = `Você é um consultor sênior de recolocação profissional no Brasil, com profundo conhecimento do mercado de trabalho brasileiro, LinkedIn, networking e estratégias de busca ativa de emprego.
+
+Suas especialidades:
+- Mapeamento de empresas por relevância e cultura
+- Otimização de perfil LinkedIn para ATS e recrutadores
+- Estratégias de networking B2B e com RH
+- Elaboração de mensagens personalizadas e eficazes
+- Planejamento de cronogramas de recolocação realistas
+- Diagnóstico de perfil com análise SWOT detalhada
+- Criação de conteúdo profissional para LinkedIn
+
+Diretrizes:
+- Use apenas empresas REAIS e relevantes ao contexto brasileiro
+- Seja específico e prático, não genérico
+- Considere sempre a localização, área e momento de mercado
+- Adapte linguagem e estratégia para o perfil (empregado vs desempregado, transição de carreira ou não)
+- Priorize qualidade e personalização sobre quantidade`;
+
+// ─── Helper: call Claude with tool use ────────────────────────────────────────
+
+async function callClaude<T>(
+  toolName: string,
+  userMessage: string,
+  maxTokens = 4096,
+): Promise<T> {
+  const tool = TOOLS.find((t) => t.name === toolName);
+  if (!tool) throw new Error(`Tool ${toolName} not found`);
+
+  const response = await anthropic.messages.create({
+    model: "claude-sonnet-4-6",
+    max_tokens: maxTokens,
+    system: [
+      {
+        type: "text",
+        text: SYSTEM_PROMPT,
+        cache_control: { type: "ephemeral" },
+      },
+    ],
+    tools: TOOLS.map((t) =>
+      t.name === toolName ? t : { ...t, cache_control: { type: "ephemeral" } }
+    ),
+    tool_choice: { type: "tool", name: toolName },
+    messages: [{ role: "user", content: userMessage }],
   });
 
-  if (!resp.ok) {
-    const text = await resp.text();
-    console.error("AI gateway error:", resp.status, text);
-    if (resp.status === 429) throw new Error("RATE_LIMITED");
-    if (resp.status === 402) throw new Error("PAYMENT_REQUIRED");
-    throw new Error(`AI gateway error: ${resp.status}`);
+  const toolUse = response.content.find((b: { type: string }) => b.type === "tool_use");
+  if (!toolUse || toolUse.type !== "tool_use") {
+    throw new Error("Claude did not return a tool_use block");
   }
-
-  const data = await resp.json();
-  const choice = data.choices?.[0];
-  if (choice?.message?.tool_calls?.[0]) {
-    return JSON.parse(choice.message.tool_calls[0].function.arguments);
-  }
-  return choice?.message?.content;
+  return toolUse.input as T;
 }
 
-// ─── Generate companies (15 per tier = 45 total) ───
-async function generateCompanies(plan: any) {
-  const tools = [{
-    type: "function",
-    function: {
-      name: "generate_companies",
-      description: "Generate relevant companies organized by tier",
-      parameters: {
-        type: "object",
-        properties: {
-          companies: {
-            type: "array",
-            items: {
-              type: "object",
-              properties: {
-                name: { type: "string" },
-                segment: { type: "string" },
-                tier: { type: "string", enum: ["A", "B", "C"] },
-                has_openings: { type: "boolean" },
-                relevance_score: { type: "number", minimum: 0, maximum: 100 },
-                notes: { type: "string" },
-              },
-              required: ["name", "segment", "tier", "has_openings", "relevance_score"],
-              additionalProperties: false,
-            },
-          },
-        },
-        required: ["companies"],
-        additionalProperties: false,
-      },
-    },
-  }];
+// ─── Generators ───────────────────────────────────────────────────────────────
 
-  return await callAI([
-    { role: "system", content: `Você é um especialista em mercado de trabalho brasileiro.
-Gere 45 empresas (15 por tier) relevantes para o perfil.
-- Tier A: grandes corporações e multinacionais, empresas dos sonhos
-- Tier B: empresas médias consolidadas, boas oportunidades
-- Tier C: startups, nichos e empresas menores estratégicas
-Considere a localização, área e segmento do candidato. Use empresas REAIS.` },
-    { role: "user", content: `Perfil: ${plan.mentee_name}, ${plan.current_position} em ${plan.current_area}. ${plan.city}, ${plan.state}. Modelo: ${plan.work_model}. ${plan.current_situation === "employed" ? "Empregado" : "Desempregado"}.${plan.wants_career_change ? ` Transição para: ${(plan.target_positions || []).join(", ")}` : ""}` },
-  ], tools, { type: "function", function: { name: "generate_companies" } });
+function profileContext(plan: Record<string, unknown>): string {
+  const situation = plan.current_situation === "employed" ? "Empregado" : "Desempregado";
+  const transition = plan.wants_career_change
+    ? ` | Transição para: ${(plan.target_positions as { title?: string }[] ?? []).map((p) => p.title).join(", ")}`
+    : "";
+  return `Nome: ${plan.mentee_name} | Cargo atual: ${plan.current_position} | Área: ${plan.current_area} | Localização: ${plan.city}, ${plan.state} | Modelo de trabalho: ${plan.work_model} | Situação: ${situation}${transition}`;
 }
 
-// ─── Generate job titles (3 categories) ───
-async function generateJobTitles(plan: any) {
-  const tools = [{
-    type: "function",
-    function: {
-      name: "generate_job_titles",
-      description: "Generate job title variations in 3 categories",
-      parameters: {
-        type: "object",
-        properties: {
-          titles: {
-            type: "array",
-            items: {
-              type: "object",
-              properties: {
-                title: { type: "string", description: "For decision_maker and hr_recruiter types, format as 'Title|||Description'" },
-                type: { type: "string", enum: ["search_variation", "decision_maker", "hr_recruiter"] },
-              },
-              required: ["title", "type"],
-              additionalProperties: false,
-            },
-          },
-        },
-        required: ["titles"],
-        additionalProperties: false,
-      },
-    },
-  }];
+async function generateCompanies(plan: Record<string, unknown>) {
+  const result = await callClaude<{ companies: unknown[] }>(
+    "generate_companies",
+    `Gere exatamente 45 empresas (15 por tier) para este perfil de recolocação:
 
-  return await callAI([
-    { role: "system", content: `Você é um especialista em recrutamento e LinkedIn no Brasil.
-Gere 3 listas de cargos:
-1. search_variation (20 variações): nomenclaturas que o candidato deve pesquisar no LinkedIn e portais de vagas (português e inglês)
-2. decision_maker (15 cargos): cargos de decisores na área do candidato. Formato: "Título|||Descrição breve do cargo e por que conectar"
-3. hr_recruiter (12 cargos): cargos de RH e recrutadores. Formato: "Título|||Descrição breve"` },
-    { role: "user", content: `Cargo: ${plan.current_position}. Área: ${plan.current_area}.${plan.wants_career_change ? ` Transição para: ${(plan.target_positions || []).join(", ")}` : ""}` },
-  ], tools, { type: "function", function: { name: "generate_job_titles" } });
+${profileContext(plan)}
+
+Critérios por tier:
+- Tier A (15): Grandes corporações, multinacionais e empresas dos sonhos — alta competitividade, alta remuneração, marca empregadora forte
+- Tier B (15): Empresas médias consolidadas, scale-ups e regionais sólidas — bom equilíbrio entre competitividade e acesso
+- Tier C (15): Startups em crescimento, nichos estratégicos e empresas menores com cultura diferenciada — maior facilidade de acesso
+
+Para cada empresa: inclua segmento real, score de relevância (0-100) considerando aderência ao perfil, e uma nota estratégica sobre por que esta empresa é relevante.`,
+    4096,
+  );
+  return result.companies;
 }
 
-// ─── Generate 6 message templates ───
-async function generateMessages(plan: any) {
-  const tools = [{
-    type: "function",
-    function: {
-      name: "generate_messages",
-      description: "Generate 6 LinkedIn message templates",
-      parameters: {
-        type: "object",
-        properties: {
-          templates: {
-            type: "array",
-            items: {
-              type: "object",
-              properties: {
-                type: { type: "string", enum: ["hr_with_opening", "hr_without_opening", "dm_with_opening", "dm_without_opening", "follow_up", "post_interview"] },
-                template: { type: "string" },
-              },
-              required: ["type", "template"],
-              additionalProperties: false,
-            },
-          },
-        },
-        required: ["templates"],
-        additionalProperties: false,
-      },
-    },
-  }];
+async function generateJobTitles(plan: Record<string, unknown>) {
+  const result = await callClaude<{ titles: unknown[] }>(
+    "generate_job_titles",
+    `Gere variações de cargo para este perfil:
 
-  return await callAI([
-    { role: "system", content: `Você é um especialista em networking profissional no LinkedIn Brasil.
-Crie 6 templates de mensagem personalizados:
-1. hr_with_opening: para RH quando há vaga aberta
-2. hr_without_opening: para RH quando não há vaga
-3. dm_with_opening: para decisor da área quando há vaga
-4. dm_without_opening: para decisor quando não há vaga
-5. follow_up: follow-up após 7 dias sem resposta
-6. post_interview: agradecimento pós-entrevista
+${profileContext(plan)}
 
-Use [Nome do RH], [Nome da Empresa], [Nome da Vaga], [Nome do Decisor] como placeholders.
-Inclua menção a experiências relevantes com placeholders como [mencione 1-2 resultados].
-NÃO inclua "Segue meu contato" - o sistema adiciona automaticamente.` },
-    { role: "user", content: `Nome: ${plan.mentee_name}. Cargo: ${plan.current_position}. Área: ${plan.current_area}.` },
-  ], tools, { type: "function", function: { name: "generate_messages" } });
+Quantidades e formatos:
+- search_variation (20): nomenclaturas para pesquisar em LinkedIn Jobs, Indeed, Gupy (português E inglês). Ex: "Gerente de Projetos", "Project Manager", "GPM", "Head de PMO"
+- decision_maker (15): cargos de tomadores de decisão que contratam para esta área. Formato: "Título|||Por que conectar e o que pedir nessa conexão"
+- hr_recruiter (12): cargos de RH e recrutadores especializados nesta área. Formato: "Título|||Como abordar e o que destacar para este perfil de RH"`,
+  );
+  return result.titles;
 }
 
-// ─── Generate schedule (4 weeks) ───
-async function generateSchedule(plan: any) {
-  const linkedinGoals = plan.linkedin_goals || {};
-  const tools = [{
-    type: "function",
-    function: {
-      name: "generate_schedule",
-      description: "Generate a 4-week activity schedule",
-      parameters: {
-        type: "object",
-        properties: {
-          activities: {
-            type: "array",
-            items: {
-              type: "object",
-              properties: {
-                week_number: { type: "number", minimum: 1, maximum: 4 },
-                day_of_week: { type: "string", enum: ["monday", "tuesday", "wednesday", "thursday", "friday"] },
-                activity: { type: "string" },
-                category: { type: "string", enum: ["linkedin", "networking", "content", "research", "applications"] },
-              },
-              required: ["week_number", "day_of_week", "activity", "category"],
-              additionalProperties: false,
-            },
-          },
-        },
-        required: ["activities"],
-        additionalProperties: false,
-      },
-    },
-  }];
+async function generateMessages(plan: Record<string, unknown>) {
+  const result = await callClaude<{ templates: unknown[] }>(
+    "generate_messages",
+    `Crie 6 templates de mensagem LinkedIn ultra-personalizados para:
 
-  return await callAI([
-    { role: "system", content: `Você é um mentor de carreira especializado em recolocação profissional.
-Crie um cronograma detalhado de 4 semanas com 3 atividades por dia (seg a sex) = 60 atividades total.
-Cada atividade deve incluir o tempo estimado em parênteses.
-Evolua a complexidade: semana 1 = fundação, semana 2 = aceleração, semanas 3-4 = consolidação.` },
-    { role: "user", content: `Situação: ${plan.current_situation}. Metas: ${linkedinGoals.connectionsPerDay || 50} conexões/dia, ${linkedinGoals.postsPerWeek || 1} posts/semana. Modelo: ${plan.work_model}. Cargo: ${plan.current_position}.` },
-  ], tools, { type: "function", function: { name: "generate_schedule" } });
+${profileContext(plan)}
+
+Tipos obrigatórios:
+1. hr_with_opening — Para RH quando há vaga aberta (mencionar vaga específica)
+2. hr_without_opening — Para RH sem vaga aberta (networking proativo)
+3. dm_with_opening — Para decisor da área com vaga (conexão + interesse direto)
+4. dm_without_opening — Para decisor sem vaga (networking estratégico de longo prazo)
+5. follow_up — Follow-up após 7 dias sem resposta (breve, não insistente)
+6. post_interview — Agradecimento pós-entrevista (reforça fit cultural)
+
+Placeholders obrigatórios: [Nome], [Empresa], [Vaga], [Resultado/Conquista]
+Limite: máximo 300 caracteres por mensagem (padrão LinkedIn)
+Tom: profissional mas humano, direto ao ponto, sem floreios`,
+  );
+  return result.templates;
 }
 
-// ─── Generate SWOT, steps, month goals, linkedin tips ───
-async function generateDiagnosis(plan: any) {
-  const tools = [{
-    type: "function",
-    function: {
-      name: "generate_diagnosis",
-      description: "Generate SWOT, steps, monthly goals, and LinkedIn tips",
-      parameters: {
-        type: "object",
-        properties: {
-          swot: {
-            type: "object",
-            properties: {
-              summary: { type: "string" },
-              strengths: { type: "array", items: { type: "string" } },
-              weaknesses: { type: "array", items: { type: "string" } },
-              opportunities: { type: "array", items: { type: "string" } },
-              threats: { type: "array", items: { type: "string" } },
-            },
-            required: ["summary", "strengths", "weaknesses", "opportunities", "threats"],
-            additionalProperties: false,
-          },
-          steps: {
-            type: "array",
-            items: {
-              type: "object",
-              properties: {
-                step: { type: "number" },
-                title: { type: "string" },
-                description: { type: "string" },
-                tip: { type: "string" },
-                time: { type: "string" },
-              },
-              required: ["step", "title", "description", "tip", "time"],
-              additionalProperties: false,
-            },
-          },
-          month_goals: {
-            type: "object",
-            properties: {
-              month1: { type: "array", items: { type: "string" } },
-              month2: { type: "array", items: { type: "string" } },
-              month3: { type: "array", items: { type: "string" } },
-            },
-            required: ["month1", "month2", "month3"],
-            additionalProperties: false,
-          },
-          linkedin_tips: { type: "array", items: { type: "string" } },
-        },
-        required: ["swot", "steps", "month_goals", "linkedin_tips"],
-        additionalProperties: false,
-      },
-    },
-  }];
+async function generateSchedule(plan: Record<string, unknown>) {
+  const goals = (plan.linkedin_goals as Record<string, unknown>) ?? {};
+  const result = await callClaude<{ activities: unknown[] }>(
+    "generate_schedule",
+    `Crie um cronograma detalhado de 4 semanas (seg a sex, 3 atividades/dia = 60 total) para:
 
-  return await callAI([
-    { role: "system", content: `Você é um consultor sênior de recolocação profissional no Brasil.
-Gere:
-1. Análise SWOT com summary, 4 forças, 4 fraquezas, 5 oportunidades, 4 ameaças
-2. 7 passos diários para LinkedIn (título, descrição, dica, tempo)
-3. Metas para 3 meses (5-6 itens cada)
-4. 5 dicas de otimização do perfil LinkedIn` },
-    { role: "user", content: `Nome: ${plan.mentee_name}. Cargo: ${plan.current_position}. Área: ${plan.current_area}. Situação: ${plan.current_situation === "employed" ? "Empregado" : "Desempregado"}. Cidade: ${plan.city}, ${plan.state}. Modelo: ${plan.work_model}.${plan.wants_career_change ? ` Transição: ${(plan.target_positions || []).join(", ")}` : ""}` },
-  ], tools, { type: "function", function: { name: "generate_diagnosis" } });
+${profileContext(plan)}
+
+Metas de LinkedIn: ${goals.connectionsPerDay ?? 50} conexões/dia, ${goals.postsPerWeek ?? 1} posts/semana
+
+Progressão obrigatória:
+- Semana 1: Fundação — otimizar perfil LinkedIn, preparar materiais, definir lista inicial de empresas e contatos
+- Semana 2: Aceleração — início ativo de conexões e candidaturas, primeiros contatos com RH
+- Semana 3: Consolidação — follow-ups, entrevistas, criação de conteúdo, networking em eventos
+- Semana 4: Refinamento — avaliar funil, ajustar abordagem, intensificar onde há tração
+
+Inclua tempo estimado entre parênteses. Ex: "Enviar 10 conexões personalizadas para Tier A (30min)"`,
+    6000,
+  );
+  return result.activities;
 }
 
-// ─── Generate content prompts for Gemini ───
-async function generateContentPrompts(plan: any) {
-  const tools = [{
-    type: "function",
-    function: {
-      name: "generate_content_prompts",
-      description: "Generate ready-to-use prompts for Gemini to create LinkedIn posts",
-      parameters: {
-        type: "object",
-        properties: {
-          prompts: {
-            type: "array",
-            items: {
-              type: "object",
-              properties: {
-                title: { type: "string" },
-                prompt: { type: "string" },
-              },
-              required: ["title", "prompt"],
-              additionalProperties: false,
-            },
-          },
-        },
-        required: ["prompts"],
-        additionalProperties: false,
-      },
-    },
-  }];
+async function generateDiagnosis(plan: Record<string, unknown>) {
+  return await callClaude<{ swot: unknown; steps: unknown[]; month_goals: unknown; linkedin_tips: unknown[] }>(
+    "generate_diagnosis",
+    `Elabore um diagnóstico profissional completo para:
 
-  return await callAI([
-    { role: "system", content: `Você é um especialista em marketing de conteúdo no LinkedIn.
-Gere 8 prompts COMPLETOS e prontos para colar no Gemini. Cada prompt deve:
-1. Ter um título curto descritivo
-2. Conter instruções claras para a IA gerar o post completo
-3. Incluir: tom de voz, estrutura do post, hashtags sugeridas, call-to-action
-4. Ser personalizado para o perfil do candidato
-5. Incluir no prompt: "Crie uma publicação para LinkedIn com aproximadamente 200-300 palavras..."
+${profileContext(plan)}
 
-Os temas devem cobrir: liderança, resultados, tendências da área, aprendizados, dicas técnicas, storytelling profissional, reflexões e networking.` },
-    { role: "user", content: `Nome: ${plan.mentee_name}. Cargo: ${plan.current_position}. Área: ${plan.current_area}. ${plan.current_situation === "employed" ? "Empregado" : "Desempregado"}.` },
-  ], tools, { type: "function", function: { name: "generate_content_prompts" } });
+Entregáveis:
+1. SWOT detalhado: summary (2-3 frases), 4 forças (resultados concretos), 4 fraquezas (acionáveis), 5 oportunidades (mercado atual), 4 ameaças (riscos reais)
+2. 7 passos de rotina diária no LinkedIn (com título, descrição prática, dica de execução e tempo estimado)
+3. Metas para 3 meses (5-6 itens por mês, progressivos e mensuráveis)
+4. 5 dicas de otimização do perfil LinkedIn (específicas para ATS e recrutadores da área)`,
+    4096,
+  );
 }
 
-// ─── Generate LinkedIn profile optimization ───
-async function generateLinkedInProfile(plan: any, cvTexts: string[]) {
-  const tools = [{
-    type: "function",
-    function: {
-      name: "generate_linkedin_profile",
-      description: "Generate optimized LinkedIn profile sections",
-      parameters: {
-        type: "object",
-        properties: {
-          sections: {
-            type: "array",
-            items: {
-              type: "object",
-              properties: {
-                key: { type: "string", enum: ["headline", "about", "experience", "skills"] },
-                title: { type: "string" },
-                ideal_text: { type: "string" },
-                explanation: { type: "string" },
-              },
-              required: ["key", "title", "ideal_text", "explanation"],
-              additionalProperties: false,
-            },
-          },
-        },
-        required: ["sections"],
-        additionalProperties: false,
-      },
-    },
-  }];
+async function generateContentPrompts(plan: Record<string, unknown>) {
+  const result = await callClaude<{ prompts: unknown[] }>(
+    "generate_content_prompts",
+    `Crie 8 prompts COMPLETOS e prontos para gerar posts no LinkedIn para:
 
+${profileContext(plan)}
+
+Cada prompt deve:
+- Ter título curto e descritivo
+- Conter instrução clara: "Crie uma publicação para LinkedIn com 200-300 palavras sobre [tema]..."
+- Especificar: tom de voz, estrutura (gancho + desenvolvimento + CTA), 3-5 hashtags relevantes
+- Ser personalizado ao perfil e área de atuação
+
+Temas que devem ser cobertos: liderança e gestão, resultado mensurável de carreira, tendência da área, aprendizado com desafio, dica técnica prática, storytelling profissional, reflexão de mercado, networking e colaboração`,
+    4096,
+  );
+  return result.prompts;
+}
+
+async function generateLinkedInProfile(plan: Record<string, unknown>, cvTexts: string[]) {
   const cvContext = cvTexts.length > 0
-    ? `\n\nTexto extraído dos documentos do candidato:\n${cvTexts.join("\n---\n")}`
+    ? `\n\nDocumentos do candidato (CV/LinkedIn PDF):\n${cvTexts.join("\n---\n")}`
     : "";
 
-  return await callAI([
-    { role: "system", content: `Você é um especialista em otimização de perfis LinkedIn no Brasil.
-Com base no perfil e documentos do candidato, gere 4 seções otimizadas:
-1. headline: título ideal do LinkedIn (até 220 caracteres)
-2. about: seção "Sobre" completa e otimizada (300-500 palavras)
-3. experience: como descrever as experiências profissionais (modelo com bullet points)
-4. skills: competências recomendadas e como organizá-las
+  const result = await callClaude<{ sections: unknown[] }>(
+    "generate_linkedin_profile",
+    `Otimize o perfil LinkedIn completo para:
 
-Para cada seção, forneça:
-- ideal_text: o texto pronto para usar
-- explanation: explicação detalhada de por que esse formato funciona e dicas` },
-    { role: "user", content: `Nome: ${plan.mentee_name}. Cargo: ${plan.current_position}. Área: ${plan.current_area}. Cidade: ${plan.city}, ${plan.state}. ${plan.current_situation === "employed" ? "Empregado" : "Desempregado"}.${plan.wants_career_change ? ` Transição: ${(plan.target_positions || []).join(", ")}` : ""}${cvContext}` },
-  ], tools, { type: "function", function: { name: "generate_linkedin_profile" } });
+${profileContext(plan)}${cvContext}
+
+Seções obrigatórias:
+1. headline: Título LinkedIn otimizado para ATS (máx 220 caracteres). Inclua: cargo + área + diferencial ou impacto
+2. about: Seção "Sobre" completa (400-500 palavras). Estrutura: hook forte → trajetória → competências-chave → conquistas com números → como pode agregar → CTA para contato
+3. experience: Modelo de como descrever experiências (bullet points com CAR: Contexto, Ação, Resultado). Gere o modelo para o cargo atual
+4. skills: Lista de 20 competências recomendadas, ordenadas por relevância para ATS. Separe em: técnicas, comportamentais e ferramentas`,
+    4096,
+  );
+  return result.sections;
 }
 
-function getErrorMessage(error: unknown) {
-  if (error instanceof Error) return error.message;
-  if (typeof error === "string") return error;
-  if (error && typeof error === "object") {
-    const e = error as { message?: string; details?: string; code?: string };
-    const parts = [e.message, e.details].filter(Boolean);
-    if (parts.length > 0) return parts.join(" — ");
-    if (e.code) return `Database error (${e.code})`;
+// ─── JWT helper (Supabase already verified signature via verify_jwt=true) ─────
+
+function extractSubFromJwt(token: string | null | undefined): string | null {
+  if (!token) return null;
+  try {
+    const payload = token.split(".")[1];
+    if (!payload) return null;
+    const decoded = JSON.parse(atob(payload.replace(/-/g, "+").replace(/_/g, "/")));
+    return decoded.sub ?? null;
+  } catch {
+    return null;
   }
-  return "Unknown error";
 }
 
-serve(async (req) => {
+// ─── HTTP Handler ──────────────────────────────────────────────────────────────
+
+serve(async (req: Request) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
 
   try {
-    const authHeader = req.headers.get("authorization");
     const supabaseUrl = Deno.env.get("SUPABASE_URL");
     const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
-
-    if (!supabaseUrl || !supabaseKey) {
+    if (!supabaseUrl || !supabaseKey || !Deno.env.get("ANTHROPIC_API_KEY")) {
       return new Response(JSON.stringify({ error: "Server configuration error" }), {
         status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
@@ -402,9 +421,11 @@ serve(async (req) => {
 
     const supabase = createClient(supabaseUrl, supabaseKey);
 
-    const token = authHeader?.replace("Bearer ", "");
-    const { data: { user }, error: authError } = await supabase.auth.getUser(token);
-    if (authError || !user) {
+    // Extract Clerk user ID from JWT sub claim
+    // verify_jwt=true in config means Supabase already verified the signature
+    const token = req.headers.get("authorization")?.replace("Bearer ", "");
+    const userId = extractSubFromJwt(token);
+    if (!userId) {
       return new Response(JSON.stringify({ error: "Unauthorized" }), {
         status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
@@ -418,7 +439,7 @@ serve(async (req) => {
     }
 
     const { data: plan, error: planError } = await supabase
-      .from("mentorship_plans").select("*").eq("id", plan_id).eq("user_id", user.id).single();
+      .from("mentorship_plans").select("*").eq("id", plan_id).eq("user_id", userId).single();
 
     if (planError || !plan) {
       return new Response(JSON.stringify({ error: "Plan not found" }), {
@@ -426,12 +447,11 @@ serve(async (req) => {
       });
     }
 
-    let result: any;
+    let result: Record<string, unknown>;
 
     switch (type) {
       case "companies": {
-        const aiResult = await generateCompanies(plan);
-        const companies = aiResult.companies.map((c: any) => ({ ...c, plan_id, kanban_stage: "identified" }));
+        const companies = (await generateCompanies(plan)).map((c) => ({ ...(c as Record<string, unknown>), plan_id, kanban_stage: "identified" }));
         const { error } = await supabase.from("companies").insert(companies);
         if (error) throw error;
         result = { generated: companies.length };
@@ -439,8 +459,7 @@ serve(async (req) => {
       }
 
       case "job_titles": {
-        const aiResult = await generateJobTitles(plan);
-        const titles = aiResult.titles.map((t: any) => ({ ...t, plan_id, is_ai_generated: true }));
+        const titles = (await generateJobTitles(plan)).map((t) => ({ ...(t as Record<string, unknown>), plan_id, is_ai_generated: true }));
         const { error } = await supabase.from("job_title_variations").insert(titles);
         if (error) throw error;
         result = { generated: titles.length };
@@ -448,8 +467,7 @@ serve(async (req) => {
       }
 
       case "messages": {
-        const aiResult = await generateMessages(plan);
-        const templates = aiResult.templates.map((t: any) => ({ ...t, plan_id, is_ai_generated: true }));
+        const templates = (await generateMessages(plan)).map((t) => ({ ...(t as Record<string, unknown>), plan_id, is_ai_generated: true }));
         const { error } = await supabase.from("message_templates").insert(templates);
         if (error) throw error;
         result = { generated: templates.length };
@@ -457,8 +475,7 @@ serve(async (req) => {
       }
 
       case "schedule": {
-        const aiResult = await generateSchedule(plan);
-        const activities = aiResult.activities.map((a: any) => ({ ...a, plan_id, is_completed: false }));
+        const activities = (await generateSchedule(plan)).map((a) => ({ ...(a as Record<string, unknown>), plan_id, is_completed: false }));
         const { error } = await supabase.from("schedule_activities").insert(activities);
         if (error) throw error;
         result = { generated: activities.length };
@@ -466,7 +483,6 @@ serve(async (req) => {
       }
 
       case "all": {
-        // Delete existing data first
         await Promise.all([
           supabase.from("companies").delete().eq("plan_id", plan_id),
           supabase.from("job_title_variations").delete().eq("plan_id", plan_id),
@@ -474,53 +490,42 @@ serve(async (req) => {
           supabase.from("schedule_activities").delete().eq("plan_id", plan_id),
         ]);
 
-        // Fetch CV documents for LinkedIn profile optimization
         const { data: cvDocs } = await supabase
-          .from("cv_documents")
-          .select("extracted_text")
-          .eq("plan_id", plan_id)
-          .not("extracted_text", "is", null);
-        const cvTexts = (cvDocs || []).map((d: any) => d.extracted_text).filter(Boolean);
+          .from("cv_documents").select("extracted_text").eq("plan_id", plan_id).not("extracted_text", "is", null);
+        const cvTexts = (cvDocs ?? []).map((d: { extracted_text: string }) => d.extracted_text).filter(Boolean);
 
-        // Generate all content in parallel
-        const [companiesRes, titlesRes, messagesRes, scheduleRes, diagnosisRes, contentPromptsRes, linkedinProfileRes] = await Promise.all([
-          generateCompanies(plan),
-          generateJobTitles(plan),
-          generateMessages(plan),
-          generateSchedule(plan),
-          generateDiagnosis(plan),
-          generateContentPrompts(plan),
-          generateLinkedInProfile(plan, cvTexts),
-        ]);
+        const [companies, titles, templates, activities, diagnosis, contentPrompts, linkedinSections] =
+          await Promise.all([
+            generateCompanies(plan),
+            generateJobTitles(plan),
+            generateMessages(plan),
+            generateSchedule(plan),
+            generateDiagnosis(plan),
+            generateContentPrompts(plan),
+            generateLinkedInProfile(plan, cvTexts),
+          ]);
 
-        const companies = companiesRes.companies.map((c: any) => ({ ...c, plan_id, kanban_stage: "identified" }));
-        const titles = titlesRes.titles.map((t: any) => ({ ...t, plan_id, is_ai_generated: true }));
-        const templates = messagesRes.templates.map((t: any) => ({ ...t, plan_id, is_ai_generated: true }));
-        const activities = scheduleRes.activities.map((a: any) => ({ ...a, plan_id, is_completed: false }));
-
+        type Row = Record<string, unknown>;
         const [c, t, m, s] = await Promise.all([
-          supabase.from("companies").insert(companies),
-          supabase.from("job_title_variations").insert(titles),
-          supabase.from("message_templates").insert(templates),
-          supabase.from("schedule_activities").insert(activities),
+          supabase.from("companies").insert(companies.map((co) => ({ ...(co as Row), plan_id, kanban_stage: "identified" }))),
+          supabase.from("job_title_variations").insert(titles.map((ti) => ({ ...(ti as Row), plan_id, is_ai_generated: true }))),
+          supabase.from("message_templates").insert(templates.map((te) => ({ ...(te as Row), plan_id, is_ai_generated: true }))),
+          supabase.from("schedule_activities").insert(activities.map((ac) => ({ ...(ac as Row), plan_id, is_completed: false }))),
         ]);
-
         if (c.error) throw c.error;
         if (t.error) throw t.error;
         if (m.error) throw m.error;
         if (s.error) throw s.error;
 
-        // Store diagnosis + content_prompts + linkedin_profile in general_notes
-        const diagnosisData = JSON.stringify({
-          swot: diagnosisRes.swot,
-          steps: diagnosisRes.steps,
-          month_goals: diagnosisRes.month_goals,
-          linkedin_tips: diagnosisRes.linkedin_tips,
-          content_prompts: contentPromptsRes.prompts,
-          linkedin_profile: { sections: linkedinProfileRes.sections },
-        });
         await supabase.from("mentorship_plans").update({
-          general_notes: diagnosisData,
+          general_notes: JSON.stringify({
+            swot: diagnosis.swot,
+            steps: diagnosis.steps,
+            month_goals: diagnosis.month_goals,
+            linkedin_tips: diagnosis.linkedin_tips,
+            content_prompts: contentPrompts,
+            linkedin_profile: { sections: linkedinSections },
+          }),
           status: "completed",
         }).eq("id", plan_id);
 
@@ -530,40 +535,37 @@ serve(async (req) => {
           messages: templates.length,
           schedule: activities.length,
           diagnosis: true,
-          content_prompts: contentPromptsRes.prompts?.length || 0,
+          content_prompts: (contentPrompts as unknown[]).length,
           linkedin_profile: true,
         };
         break;
       }
 
       case "content_only": {
-        // Fetch CV documents for LinkedIn profile optimization
         const { data: cvDocsContent } = await supabase
-          .from("cv_documents")
-          .select("extracted_text")
-          .eq("plan_id", plan_id)
-          .not("extracted_text", "is", null);
-        const cvTextsContent = (cvDocsContent || []).map((d: any) => d.extracted_text).filter(Boolean);
+          .from("cv_documents").select("extracted_text").eq("plan_id", plan_id).not("extracted_text", "is", null);
+        const cvTexts = (cvDocsContent ?? []).map((d: { extracted_text: string }) => d.extracted_text).filter(Boolean);
 
-        const [contentPromptsOnly, linkedinProfileOnly] = await Promise.all([
+        const [contentPrompts, linkedinSections] = await Promise.all([
           generateContentPrompts(plan),
-          generateLinkedInProfile(plan, cvTextsContent),
+          generateLinkedInProfile(plan, cvTexts),
         ]);
 
-        // Merge into existing general_notes
-        let existingData: any = {};
+        let existingData: Record<string, unknown> = {};
         if (plan.general_notes) {
-          try { existingData = JSON.parse(plan.general_notes); } catch {}
+          try { existingData = JSON.parse(plan.general_notes); } catch { /* ignore */ }
         }
-        existingData.content_prompts = contentPromptsOnly.prompts;
-        existingData.linkedin_profile = { sections: linkedinProfileOnly.sections };
 
         await supabase.from("mentorship_plans").update({
-          general_notes: JSON.stringify(existingData),
+          general_notes: JSON.stringify({
+            ...existingData,
+            content_prompts: contentPrompts,
+            linkedin_profile: { sections: linkedinSections },
+          }),
         }).eq("id", plan_id);
 
         result = {
-          content_prompts: contentPromptsOnly.prompts?.length || 0,
+          content_prompts: (contentPrompts as unknown[]).length,
           linkedin_profile: true,
         };
         break;
@@ -578,23 +580,13 @@ serve(async (req) => {
     return new Response(JSON.stringify({ success: true, result }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
+
   } catch (e) {
     console.error("generate-plan error:", e);
-    const message = getErrorMessage(e);
-
-    if (message === "RATE_LIMITED") {
-      return new Response(JSON.stringify({ error: "IA temporariamente indisponível. Tente novamente." }), {
-        status: 429, headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
-    }
-    if (message === "PAYMENT_REQUIRED") {
-      return new Response(JSON.stringify({ error: "Créditos de IA esgotados." }), {
-        status: 402, headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
-    }
-
-    return new Response(JSON.stringify({ error: message }), {
-      status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" },
+    const msg = e instanceof Error ? e.message : "Internal error";
+    const status = msg.includes("overloaded") || msg.includes("529") ? 529 : 500;
+    return new Response(JSON.stringify({ error: msg }), {
+      status, headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   }
 });

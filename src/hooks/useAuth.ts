@@ -1,56 +1,30 @@
-import { useState, useEffect } from "react";
-import { supabase } from "@/integrations/supabase/client";
-import type { User, Session } from "@supabase/supabase-js";
+import { useUser, useClerk } from '@clerk/clerk-react';
 
 export function useAuth() {
-  const [user, setUser] = useState<User | null>(null);
-  const [session, setSession] = useState<Session | null>(null);
-  const [loading, setLoading] = useState(true);
+  const { user, isLoaded } = useUser();
+  const { signOut: clerkSignOut } = useClerk();
 
-  useEffect(() => {
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      (_event, session) => {
-        setSession(session);
-        setUser(session?.user ?? null);
-        setLoading(false);
+  const mappedUser = user
+    ? {
+        id: user.id,
+        email: user.primaryEmailAddress?.emailAddress ?? '',
+        user_metadata: {
+          name: user.fullName ?? user.firstName ?? '',
+          must_change_password: false,
+        },
       }
-    );
-
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      setSession(session);
-      setUser(session?.user ?? null);
-      setLoading(false);
-    });
-
-    return () => subscription.unsubscribe();
-  }, []);
-
-  const signIn = async (email: string, password: string) => {
-    return supabase.auth.signInWithPassword({ email, password });
-  };
-
-  const signUp = async (email: string, password: string, name?: string) => {
-    return supabase.auth.signUp({
-      email,
-      password,
-      options: {
-        data: { name },
-        emailRedirectTo: window.location.origin,
-      },
-    });
-  };
-
-  const signOut = async () => {
-    return supabase.auth.signOut();
-  };
+    : null;
 
   return {
-    user,
-    session,
-    loading,
-    isAuthenticated: !!session,
-    signIn,
-    signUp,
-    signOut,
+    user: mappedUser,
+    session: user ? { user: mappedUser } : null,
+    loading: !isLoaded,
+    isAuthenticated: !!user,
+    signIn: async (_email: string, _password: string) => ({ error: null, data: null }),
+    signUp: async (_email: string, _password: string, _name?: string) => ({ error: null, data: null }),
+    signOut: async () => {
+      await clerkSignOut();
+      return { error: null };
+    },
   };
 }

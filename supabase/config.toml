@@ -1,4 +1,7 @@
-project_id = "ywhxhkfgjkngafqkbfdw"
+project_id = "wyazjtxqfgbqjmvydfic"
 
 [functions.orion-bridge]
 verify_jwt = false
+
+[functions.generate-plan]
+verify_jwt = true
