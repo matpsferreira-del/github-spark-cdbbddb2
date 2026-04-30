@@ -1,4 +1,4 @@
-import { Sparkles, Copy, Check, CheckCircle2, Circle, RefreshCw, Loader2 } from "lucide-react";
+import { Sparkles, Copy, Check, CheckCircle2, Circle, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useState } from "react";
 import { toast } from "sonner";
@@ -7,12 +7,11 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { parseDiagnosisData } from "../types";
 import type { PlanSlideProps } from "../types";
 
-export default function ContentSlide({ plan, onRefreshData, onGenerate, generating }: PlanSlideProps) {
+export default function ContentSlide({ plan, onGenerate, generating }: PlanSlideProps) {
   const linkedinGoals = plan.linkedin_goals as any;
   const data = parseDiagnosisData(plan.general_notes);
   const prompts = data.content_prompts;
   const [copiedIdx, setCopiedIdx] = useState<number | null>(null);
-  const [generatingContent, setGeneratingContent] = useState(false);
   const queryClient = useQueryClient();
 
   const { data: completions = [] } = useQuery({
@@ -38,10 +37,7 @@ export default function ContentSlide({ plan, onRefreshData, onGenerate, generati
     if (already) {
       await supabase.from("content_prompt_completions").delete().eq("id", already.id);
     } else {
-      await supabase.from("content_prompt_completions").insert({
-        plan_id: plan.id,
-        prompt_index: idx,
-      });
+      await supabase.from("content_prompt_completions").insert({ plan_id: plan.id, prompt_index: idx });
     }
     queryClient.invalidateQueries({ queryKey: ["content_completions", plan.id] });
   };
@@ -54,28 +50,28 @@ export default function ContentSlide({ plan, onRefreshData, onGenerate, generati
   };
 
   return (
-    <div className="p-8">
+    <div className="p-4 md:p-8">
       <p className="text-primary text-sm tracking-[0.2em] font-medium mb-1">ESTRATÉGIA DE CONTEÚDO</p>
-      <h2 className="text-3xl font-bold text-foreground mb-6">Conteúdo para LinkedIn</h2>
+      <h2 className="text-xl md:text-3xl font-bold text-foreground mb-4 md:mb-6">Conteúdo para LinkedIn</h2>
 
-      <div className="grid grid-cols-3 gap-4 mb-8">
-        <div className="bg-card border border-border rounded-lg p-5">
-          <p className="text-muted-foreground text-sm">Meta Semanal</p>
-          <p className="text-foreground font-bold text-3xl">{weeklyGoal} posts</p>
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 md:gap-4 mb-6 md:mb-8">
+        <div className="bg-card border border-border rounded-lg p-4 md:p-5">
+          <p className="text-muted-foreground text-xs mb-1">Meta Semanal</p>
+          <p className="text-foreground font-bold text-2xl md:text-3xl">{weeklyGoal} posts</p>
         </div>
-        <div className="bg-card border border-border rounded-lg p-5">
-          <p className="text-muted-foreground text-sm">Conexões/Dia</p>
-          <p className="text-foreground font-bold text-3xl">{linkedinGoals?.connectionsPerDay || 50}</p>
+        <div className="bg-card border border-border rounded-lg p-4 md:p-5">
+          <p className="text-muted-foreground text-xs mb-1">Conexões/Dia</p>
+          <p className="text-foreground font-bold text-2xl md:text-3xl">{linkedinGoals?.connectionsPerDay || 50}</p>
         </div>
-        <div className="bg-card border border-border rounded-lg p-5">
-          <p className="text-muted-foreground text-sm">Posts Publicados</p>
-          <p className="text-foreground font-bold text-3xl">
-            {completedCount}<span className="text-lg text-muted-foreground">/{totalPrompts}</span>
+        <div className="bg-card border border-border rounded-lg p-4 md:p-5">
+          <p className="text-muted-foreground text-xs mb-1">Posts Publicados</p>
+          <p className="text-foreground font-bold text-2xl md:text-3xl">
+            {completedCount}<span className="text-base text-muted-foreground">/{totalPrompts}</span>
           </p>
           {totalPrompts > 0 && (
-            <div className="w-full bg-secondary rounded-full h-2 mt-2">
+            <div className="w-full bg-secondary rounded-full h-1.5 mt-2">
               <div
-                className="bg-primary h-2 rounded-full transition-all"
+                className="bg-primary h-1.5 rounded-full transition-all"
                 style={{ width: `${Math.min(100, (completedCount / totalPrompts) * 100)}%` }}
               />
             </div>
@@ -83,28 +79,27 @@ export default function ContentSlide({ plan, onRefreshData, onGenerate, generati
         </div>
       </div>
 
-      <h3 className="text-foreground font-semibold mb-2">Prompts Prontos para o Gemini</h3>
+      <h3 className="text-foreground font-semibold mb-1">Prompts Prontos para o Gemini</h3>
       <p className="text-muted-foreground text-xs mb-4">
         Copie cada prompt, cole no Gemini, publique o post e marque como feito ✅
       </p>
 
       {prompts && prompts.length > 0 ? (
-        <div className="space-y-4">
+        <div className="space-y-3">
           {prompts.map((prompt, i) => {
             const done = isCompleted(i);
             return (
-              <div key={i} className={`bg-card border rounded-lg p-5 transition-all ${done ? "border-primary/40 opacity-75" : "border-border"}`}>
+              <div key={i} className={`bg-card border rounded-lg p-4 transition-all ${done ? "border-primary/40 opacity-75" : "border-border"}`}>
                 <div className="flex items-start justify-between gap-3 mb-2">
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-2 min-w-0">
                     <button onClick={() => toggleCompletion(i)} className="shrink-0">
-                      {done ? (
-                        <CheckCircle2 className="w-5 h-5 text-primary" />
-                      ) : (
-                        <Circle className="w-5 h-5 text-muted-foreground hover:text-primary transition-colors" />
-                      )}
+                      {done
+                        ? <CheckCircle2 className="w-5 h-5 text-primary" />
+                        : <Circle className="w-5 h-5 text-muted-foreground hover:text-primary transition-colors" />
+                      }
                     </button>
                     <Sparkles className="w-4 h-4 text-primary shrink-0" />
-                    <h4 className={`font-semibold text-sm ${done ? "line-through text-muted-foreground" : "text-foreground"}`}>
+                    <h4 className={`font-semibold text-sm truncate ${done ? "line-through text-muted-foreground" : "text-foreground"}`}>
                       {prompt.title}
                     </h4>
                   </div>
@@ -135,15 +130,9 @@ export default function ContentSlide({ plan, onRefreshData, onGenerate, generati
           <Sparkles className="w-12 h-12 text-primary mx-auto mb-4" />
           <h3 className="text-foreground font-semibold text-lg mb-2">Prompts ainda não gerados</h3>
           <p className="text-muted-foreground text-sm mb-6 max-w-md mx-auto">
-            Clique abaixo para gerar prompts personalizados para seus posts no LinkedIn. A IA criará 8 prompts prontos para copiar e colar no Gemini.
+            Clique abaixo para gerar prompts personalizados para seus posts no LinkedIn.
           </p>
-          <Button
-            onClick={() => {
-              if (onGenerate) onGenerate("content_only");
-            }}
-            disabled={generating}
-            className="gap-2"
-          >
+          <Button onClick={() => onGenerate("content_only")} disabled={generating} className="gap-2">
             {generating ? <Loader2 className="w-4 h-4 animate-spin" /> : <Sparkles className="w-4 h-4" />}
             {generating ? "Gerando prompts..." : "Gerar Prompts de Conteúdo"}
           </Button>

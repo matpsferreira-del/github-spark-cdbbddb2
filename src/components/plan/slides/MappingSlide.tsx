@@ -30,9 +30,7 @@ function fuzzyMatch(input: string, target: string): boolean {
   const b = target.toLowerCase().trim();
   if (a === b) return true;
   if (a.length < 3) return false;
-  // Check containment
   if (b.includes(a) || a.includes(b)) return true;
-  // Check similarity (shared words)
   const wordsA = a.split(/\s+/);
   const wordsB = b.split(/\s+/);
   const shared = wordsA.filter(w => w.length > 2 && wordsB.some(wb => wb.includes(w) || w.includes(wb)));
@@ -48,24 +46,16 @@ export default function MappingSlide({ plan, contacts, companies, onRefreshData 
 
   const findMatchingCompany = useCallback((companyName: string): Company | null => {
     if (!companyName.trim()) return null;
-    // Exact match first
     const exact = companies.find(c => c.name.toLowerCase().trim() === companyName.toLowerCase().trim());
     if (exact) return exact;
-    // Fuzzy match
-    const fuzzy = companies.find(c => fuzzyMatch(companyName, c.name));
-    return fuzzy || null;
+    return companies.find(c => fuzzyMatch(companyName, c.name)) || null;
   }, [companies]);
 
   const doAddContact = async (formData: typeof form, companyOverride?: string) => {
     if (!formData.name) return toast.error("Nome é obrigatório");
-
-    // Check for duplicate by LinkedIn URL
     if (formData.linkedin_url?.trim()) {
       const normalizedUrl = formData.linkedin_url.trim().replace(/\/$/, "").toLowerCase();
-      const duplicate = contacts.find(c => {
-        if (!c.linkedin_url) return false;
-        return c.linkedin_url.trim().replace(/\/$/, "").toLowerCase() === normalizedUrl;
-      });
+      const duplicate = contacts.find(c => c.linkedin_url?.trim().replace(/\/$/, "").toLowerCase() === normalizedUrl);
       if (duplicate) {
         toast.info(`Perfil já mapeado: ${duplicate.name}`);
         setForm({ name: "", current_position: "", company: "", type: "decision_maker", tier: "A", linkedin_url: "" });
@@ -73,14 +63,11 @@ export default function MappingSlide({ plan, contacts, companies, onRefreshData 
         return;
       }
     }
-
     const { error } = await supabase.from("contact_mappings").insert({
-      plan_id: plan.id,
-      name: formData.name,
+      plan_id: plan.id, name: formData.name,
       current_position: formData.current_position || null,
       company: companyOverride || formData.company || null,
-      type: formData.type,
-      tier: formData.tier,
+      type: formData.type, tier: formData.tier,
       linkedin_url: formData.linkedin_url || null,
     });
     if (error) toast.error("Erro ao adicionar contato");
@@ -94,30 +81,23 @@ export default function MappingSlide({ plan, contacts, companies, onRefreshData 
 
   const addContact = async () => {
     if (!form.name) return toast.error("Nome é obrigatório");
-
     if (form.company.trim()) {
       const matched = findMatchingCompany(form.company);
       if (matched && matched.name.toLowerCase().trim() !== form.company.toLowerCase().trim()) {
-        // Fuzzy match found - ask user
         setMatchDialog({ open: true, contactCompany: form.company, matched, pendingForm: { ...form } });
         return;
       }
     }
-
     doAddContact(form);
   };
 
   const handleMatchConfirm = () => {
-    if (matchDialog.pendingForm && matchDialog.matched) {
-      doAddContact(matchDialog.pendingForm, matchDialog.matched.name);
-    }
+    if (matchDialog.pendingForm && matchDialog.matched) doAddContact(matchDialog.pendingForm, matchDialog.matched.name);
     setMatchDialog({ open: false, contactCompany: "", matched: null, pendingForm: null });
   };
 
   const handleMatchCancel = () => {
-    if (matchDialog.pendingForm) {
-      doAddContact(matchDialog.pendingForm);
-    }
+    if (matchDialog.pendingForm) doAddContact(matchDialog.pendingForm);
     setMatchDialog({ open: false, contactCompany: "", matched: null, pendingForm: null });
   };
 
@@ -134,104 +114,107 @@ export default function MappingSlide({ plan, contacts, companies, onRefreshData 
   };
 
   return (
-    <div className="p-8">
+    <div className="p-4 md:p-8">
       <div className="flex items-center justify-between mb-1">
         <p className="text-primary text-sm tracking-[0.2em] font-medium">CONTROLE DE NETWORKING</p>
         <Button onClick={() => setAdding(!adding)} size="sm">
-          <Plus className="w-4 h-4 mr-1" /> Adicionar Contato
+          <Plus className="w-4 h-4 mr-1" /> Adicionar
         </Button>
       </div>
-      <h2 className="text-3xl font-bold text-foreground mb-2">Mapeamento de Contatos</h2>
-      <p className="text-muted-foreground text-sm mb-6">Registre decisores e recrutadores que você está abordando.</p>
+      <h2 className="text-xl md:text-3xl font-bold text-foreground mb-2">Mapeamento de Contatos</h2>
+      <p className="text-muted-foreground text-sm mb-4">Registre decisores e recrutadores que você está abordando.</p>
 
+      {/* Add form — responsive grid */}
       {adding && (
-        <div className="bg-card border border-border rounded-lg p-4 mb-6 grid grid-cols-6 gap-3 items-end">
-          <Input placeholder="Nome" value={form.name} onChange={e => setForm({ ...form, name: e.target.value })} />
-          <Input placeholder="Cargo" value={form.current_position} onChange={e => setForm({ ...form, current_position: e.target.value })} />
-          <Input placeholder="Empresa" value={form.company} onChange={e => setForm({ ...form, company: e.target.value })} />
-          <Select value={form.type} onValueChange={v => setForm({ ...form, type: v })}>
-            <SelectTrigger><SelectValue /></SelectTrigger>
-            <SelectContent>
-              <SelectItem value="decision_maker">Decisor</SelectItem>
-              <SelectItem value="hr">RH</SelectItem>
-              <SelectItem value="other">Outro</SelectItem>
-            </SelectContent>
-          </Select>
-          <Select value={form.tier} onValueChange={v => setForm({ ...form, tier: v })}>
-            <SelectTrigger><SelectValue /></SelectTrigger>
-            <SelectContent>
-              <SelectItem value="A">A</SelectItem>
-              <SelectItem value="B">B</SelectItem>
-              <SelectItem value="C">C</SelectItem>
-            </SelectContent>
-          </Select>
-          <Button onClick={addContact}>Salvar</Button>
+        <div className="bg-card border border-border rounded-lg p-4 mb-4">
+          <div className="grid grid-cols-2 md:grid-cols-3 gap-3 mb-3">
+            <Input placeholder="Nome *" value={form.name} onChange={e => setForm({ ...form, name: e.target.value })} />
+            <Input placeholder="Cargo" value={form.current_position} onChange={e => setForm({ ...form, current_position: e.target.value })} />
+            <Input placeholder="Empresa" value={form.company} onChange={e => setForm({ ...form, company: e.target.value })} />
+            <Select value={form.type} onValueChange={v => setForm({ ...form, type: v })}>
+              <SelectTrigger><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="decision_maker">Decisor</SelectItem>
+                <SelectItem value="hr">RH</SelectItem>
+                <SelectItem value="other">Outro</SelectItem>
+              </SelectContent>
+            </Select>
+            <Select value={form.tier} onValueChange={v => setForm({ ...form, tier: v })}>
+              <SelectTrigger><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="A">Tier A</SelectItem>
+                <SelectItem value="B">Tier B</SelectItem>
+                <SelectItem value="C">Tier C</SelectItem>
+              </SelectContent>
+            </Select>
+            <Input placeholder="URL do LinkedIn" value={form.linkedin_url} onChange={e => setForm({ ...form, linkedin_url: e.target.value })} />
+          </div>
+          <Button onClick={addContact} className="w-full sm:w-auto">Salvar Contato</Button>
         </div>
       )}
 
+      {/* Table with horizontal scroll on mobile */}
       <div className="border border-border rounded-lg overflow-hidden">
-        <table className="w-full">
-          <thead>
-            <tr className="border-b border-border">
-              <th className="text-left px-4 py-3 text-muted-foreground text-xs font-semibold tracking-wider uppercase">Nome</th>
-              <th className="text-left px-4 py-3 text-muted-foreground text-xs font-semibold tracking-wider uppercase">Cargo</th>
-              <th className="text-left px-4 py-3 text-muted-foreground text-xs font-semibold tracking-wider uppercase">Empresa</th>
-              <th className="text-left px-4 py-3 text-muted-foreground text-xs font-semibold tracking-wider uppercase">Tipo</th>
-              <th className="text-left px-4 py-3 text-muted-foreground text-xs font-semibold tracking-wider uppercase">Tier</th>
-              <th className="text-left px-4 py-3 text-muted-foreground text-xs font-semibold tracking-wider uppercase">Status</th>
-              <th className="w-10"></th>
-            </tr>
-          </thead>
-          <tbody>
-            {contacts.length === 0 ? (
-              <tr>
-                <td colSpan={7} className="text-center py-12 text-muted-foreground text-sm">
-                  Nenhum contato mapeado ainda.
-                </td>
+        <div className="overflow-x-auto">
+          <table className="w-full min-w-[600px]">
+            <thead>
+              <tr className="border-b border-border bg-secondary/30">
+                <th className="text-left px-4 py-3 text-muted-foreground text-xs font-semibold uppercase tracking-wider">Nome</th>
+                <th className="text-left px-4 py-3 text-muted-foreground text-xs font-semibold uppercase tracking-wider">Cargo</th>
+                <th className="text-left px-4 py-3 text-muted-foreground text-xs font-semibold uppercase tracking-wider">Empresa</th>
+                <th className="text-left px-4 py-3 text-muted-foreground text-xs font-semibold uppercase tracking-wider">Tipo</th>
+                <th className="text-left px-4 py-3 text-muted-foreground text-xs font-semibold uppercase tracking-wider">Status</th>
+                <th className="w-10"></th>
               </tr>
-            ) : (
-              contacts.map(c => (
-                <tr key={c.id} className="border-b border-border hover:bg-secondary/30 transition-colors">
-                  <td className="px-4 py-3">
-                    <div className="flex items-center gap-1">
-                      <span className="text-foreground text-sm font-medium">{c.name}</span>
-                      {c.linkedin_url && (
-                        <a href={c.linkedin_url} target="_blank" rel="noreferrer" className="text-primary">
-                          <ExternalLink className="w-3 h-3" />
-                        </a>
-                      )}
-                    </div>
-                  </td>
-                  <td className="px-4 py-3 text-muted-foreground text-sm">{c.current_position || "—"}</td>
-                  <td className="px-4 py-3 text-muted-foreground text-sm">{c.company || "—"}</td>
-                  <td className="px-4 py-3">
-                    <Badge variant="secondary" className="text-xs">{typeLabels[c.type] || c.type}</Badge>
-                  </td>
-                  <td className="px-4 py-3">
-                    <Badge variant="outline" className="text-xs">{c.tier}</Badge>
-                  </td>
-                  <td className="px-4 py-3">
-                    <Select value={c.status} onValueChange={v => updateStatus(c.id, v)}>
-                      <SelectTrigger className="h-7 text-xs w-36">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {Object.entries(statusLabels).map(([k, v]) => (
-                          <SelectItem key={k} value={k}>{v}</SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </td>
-                  <td className="px-4 py-3">
-                    <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => deleteContact(c.id)}>
-                      <X className="w-3 h-3" />
-                    </Button>
+            </thead>
+            <tbody>
+              {contacts.length === 0 ? (
+                <tr>
+                  <td colSpan={6} className="text-center py-10 text-muted-foreground text-sm">
+                    Nenhum contato mapeado ainda.
                   </td>
                 </tr>
-              ))
-            )}
-          </tbody>
-        </table>
+              ) : (
+                contacts.map(c => (
+                  <tr key={c.id} className="border-b border-border hover:bg-secondary/30 transition-colors">
+                    <td className="px-4 py-3">
+                      <div className="flex items-center gap-1.5">
+                        <span className="text-foreground text-sm font-medium whitespace-nowrap">{c.name}</span>
+                        {c.linkedin_url && (
+                          <a href={c.linkedin_url} target="_blank" rel="noreferrer" className="text-primary shrink-0">
+                            <ExternalLink className="w-3 h-3" />
+                          </a>
+                        )}
+                      </div>
+                    </td>
+                    <td className="px-4 py-3 text-muted-foreground text-sm whitespace-nowrap">{c.current_position || "—"}</td>
+                    <td className="px-4 py-3 text-muted-foreground text-sm whitespace-nowrap">{c.company || "—"}</td>
+                    <td className="px-4 py-3">
+                      <Badge variant="secondary" className="text-xs whitespace-nowrap">{typeLabels[c.type] || c.type}</Badge>
+                    </td>
+                    <td className="px-4 py-3">
+                      <Select value={c.status} onValueChange={v => updateStatus(c.id, v)}>
+                        <SelectTrigger className="h-7 text-xs w-36">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {Object.entries(statusLabels).map(([k, v]) => (
+                            <SelectItem key={k} value={k}>{v}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </td>
+                    <td className="px-4 py-3">
+                      <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => deleteContact(c.id)}>
+                        <X className="w-3.5 h-3.5" />
+                      </Button>
+                    </td>
+                  </tr>
+                ))
+              )}
+            </tbody>
+          </table>
+        </div>
       </div>
 
       <CompanyMatchDialog

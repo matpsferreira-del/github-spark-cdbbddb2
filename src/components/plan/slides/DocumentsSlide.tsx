@@ -37,15 +37,10 @@ export default function DocumentsSlide({ plan }: PlanSlideProps) {
       if (uploadError) throw uploadError;
 
       const { data: urlData } = supabase.storage.from("cv-documents").getPublicUrl(filePath);
-
-      // Delete existing doc of same type
       await supabase.from("cv_documents").delete().eq("plan_id", plan.id).eq("type", docType);
 
       const { error: dbError } = await supabase.from("cv_documents").insert({
-        plan_id: plan.id,
-        type: docType,
-        file_name: file.name,
-        file_url: urlData.publicUrl,
+        plan_id: plan.id, type: docType, file_name: file.name, file_url: urlData.publicUrl,
       });
       if (dbError) throw dbError;
 
@@ -71,28 +66,28 @@ export default function DocumentsSlide({ plan }: PlanSlideProps) {
   };
 
   return (
-    <div className="p-8">
+    <div className="p-4 md:p-8">
       <p className="text-primary text-sm tracking-[0.2em] font-medium mb-1">DOCUMENTOS</p>
-      <h2 className="text-3xl font-bold text-foreground mb-2">CVs do Mentorado</h2>
-      <p className="text-muted-foreground text-sm mb-8">
+      <h2 className="text-xl md:text-3xl font-bold text-foreground mb-2">CVs do Mentorado</h2>
+      <p className="text-muted-foreground text-sm mb-6">
         Anexe documentos para que a IA use na análise e otimização do perfil LinkedIn.
       </p>
 
-      <div className="grid grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 md:gap-6">
         {docTypes.map(({ type, label, icon: Icon, iconColor, description }) => {
           const existingDoc = documents.find(d => d.type === type);
           return (
-            <div key={type} className="bg-card border border-border rounded-xl p-6">
+            <div key={type} className="bg-card border border-border rounded-xl p-4 md:p-6">
               <div className="flex items-center gap-3 mb-3">
                 <Icon className={`w-5 h-5 ${iconColor}`} />
                 <h3 className="text-foreground font-bold">{label}</h3>
               </div>
-              <p className="text-muted-foreground text-sm mb-6">{description}</p>
+              <p className="text-muted-foreground text-sm mb-4">{description}</p>
 
               {existingDoc ? (
                 <div className="space-y-2">
                   <div className="flex items-center gap-2 text-sm text-primary">
-                    <CheckCircle2 className="w-4 h-4" />
+                    <CheckCircle2 className="w-4 h-4 shrink-0" />
                     <span className="truncate">{existingDoc.file_name}</span>
                   </div>
                   <Button
@@ -122,11 +117,10 @@ export default function DocumentsSlide({ plan }: PlanSlideProps) {
                     onClick={() => fileInputRefs.current[type]?.click()}
                     disabled={uploading === type}
                   >
-                    {uploading === type ? (
-                      <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                    ) : (
-                      <Upload className="w-4 h-4 mr-2" />
-                    )}
+                    {uploading === type
+                      ? <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                      : <Upload className="w-4 h-4 mr-2" />
+                    }
                     Anexar {label}
                   </Button>
                 </>

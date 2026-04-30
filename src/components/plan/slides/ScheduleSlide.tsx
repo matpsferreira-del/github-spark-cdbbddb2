@@ -1,4 +1,3 @@
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Wand2, Loader2 } from "lucide-react";
@@ -8,11 +7,11 @@ import { parseDiagnosisData } from "../types";
 import type { PlanSlideProps } from "../types";
 
 const dayLabels: Record<string, string> = {
-  monday: "SEGUNDA",
-  tuesday: "TERÇA",
-  wednesday: "QUARTA",
-  thursday: "QUINTA",
-  friday: "SEXTA",
+  monday: "SEG",
+  tuesday: "TER",
+  wednesday: "QUA",
+  thursday: "QUI",
+  friday: "SEX",
 };
 const days = ["monday", "tuesday", "wednesday", "thursday", "friday"];
 
@@ -37,10 +36,7 @@ export default function ScheduleSlide({ plan, schedule, generating, onGenerate, 
 
     const { error } = await supabase
       .from("schedule_activities")
-      .update({
-        is_completed: newState,
-        completed_at: newState ? new Date().toISOString() : null,
-      })
+      .update({ is_completed: newState, completed_at: newState ? new Date().toISOString() : null })
       .eq("id", activityId);
 
     if (error) toast.error("Erro ao atualizar atividade");
@@ -49,8 +45,8 @@ export default function ScheduleSlide({ plan, schedule, generating, onGenerate, 
 
   if (schedule.length === 0) {
     return (
-      <div className="h-full flex flex-col items-center justify-center p-12">
-        <p className="text-muted-foreground mb-4">Nenhuma atividade gerada.</p>
+      <div className="h-full flex flex-col items-center justify-center p-8 md:p-12">
+        <p className="text-muted-foreground mb-4 text-sm">Nenhuma atividade gerada.</p>
         {!isMentee && (
           <Button onClick={() => onGenerate("schedule")} disabled={generating}>
             {generating ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Wand2 className="w-4 h-4 mr-2" />}
@@ -64,12 +60,12 @@ export default function ScheduleSlide({ plan, schedule, generating, onGenerate, 
   const weeks = [...new Set(schedule.map(a => a.week_number))].sort();
 
   return (
-    <div className="p-8">
+    <div className="p-4 md:p-8">
       <div className="flex items-center justify-between mb-1">
         <p className="text-primary text-sm tracking-[0.2em] font-medium">PLANEJAMENTO</p>
-        <div className="flex items-center gap-4">
+        <div className="flex items-center gap-3">
           <div className="text-right">
-            <p className="text-2xl font-bold text-foreground">{completedCount}/{schedule.length}</p>
+            <p className="text-xl md:text-2xl font-bold text-foreground">{completedCount}/{schedule.length}</p>
             <p className="text-muted-foreground text-xs">atividades</p>
           </div>
           {!isMentee && (
@@ -80,11 +76,11 @@ export default function ScheduleSlide({ plan, schedule, generating, onGenerate, 
           )}
         </div>
       </div>
-      <h2 className="text-3xl font-bold text-foreground mb-6">Cronograma & Rotina</h2>
+      <h2 className="text-xl md:text-3xl font-bold text-foreground mb-6">Cronograma & Rotina</h2>
 
-      {/* Month Goals */}
+      {/* Month Goals — stack on mobile */}
       {monthGoals && (
-        <div className="grid grid-cols-3 gap-4 mb-8">
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 md:gap-4 mb-6 md:mb-8">
           {[
             { key: "month1", title: "Mês 1 — Fundação", color: "text-primary" },
             { key: "month2", title: "Mês 2 — Aceleração", color: "text-primary" },
@@ -95,7 +91,7 @@ export default function ScheduleSlide({ plan, schedule, generating, onGenerate, 
               <ul className="space-y-1.5">
                 {(monthGoals as any)[key]?.map((goal: string, i: number) => (
                   <li key={i} className="flex items-start gap-2 text-foreground text-xs">
-                    <span className="text-muted-foreground mt-0.5">→</span> {goal}
+                    <span className="text-muted-foreground mt-0.5 shrink-0">→</span> {goal}
                   </li>
                 ))}
               </ul>
@@ -104,42 +100,46 @@ export default function ScheduleSlide({ plan, schedule, generating, onGenerate, 
         </div>
       )}
 
-      {/* Weekly Schedule */}
-      <p className="text-muted-foreground text-sm font-medium mb-4 flex items-center gap-2">
+      <p className="text-muted-foreground text-sm font-medium mb-4">
         ✅ ROTINA SEMANAL — MARQUE AS ATIVIDADES CONCLUÍDAS
       </p>
+      {/* Mobile hint */}
+      <p className="text-muted-foreground text-xs mb-3 md:hidden">← Deslize para ver todos os dias</p>
 
       <div className="space-y-8">
         {weeks.map(week => (
           <div key={week}>
-            <h3 className="text-foreground font-semibold mb-3">SEMANA {week}</h3>
-            <div className="grid grid-cols-5 gap-2">
-              {days.map(day => {
-                const dayActivities = schedule.filter(a => a.week_number === week && a.day_of_week === day);
-                return (
-                  <div key={day} className="bg-card border border-border rounded-lg p-3">
-                    <p className="text-primary text-xs font-bold mb-2">{dayLabels[day]}</p>
-                    <div className="space-y-2">
-                      {dayActivities.length === 0 ? (
-                        <p className="text-muted-foreground text-xs">—</p>
-                      ) : (
-                        dayActivities.map(activity => (
-                          <label key={activity.id} className="flex items-start gap-2 cursor-pointer">
-                            <Checkbox
-                              checked={activity.is_completed}
-                              onCheckedChange={(checked) => toggleActivity(activity.id, checked)}
-                              className="mt-0.5 shrink-0"
-                            />
-                            <span className={`text-xs leading-snug ${activity.is_completed ? "line-through text-muted-foreground" : "text-foreground"}`}>
-                              {activity.activity}
-                            </span>
-                          </label>
-                        ))
-                      )}
+            <h3 className="text-foreground font-semibold mb-3 text-sm md:text-base">SEMANA {week}</h3>
+            {/* Horizontal scroll on mobile for the 5-column grid */}
+            <div className="overflow-x-auto -mx-4 md:mx-0">
+              <div className="grid grid-cols-5 gap-2 px-4 md:px-0 min-w-[480px] md:min-w-0">
+                {days.map(day => {
+                  const dayActivities = schedule.filter(a => a.week_number === week && a.day_of_week === day);
+                  return (
+                    <div key={day} className="bg-card border border-border rounded-lg p-2 md:p-3">
+                      <p className="text-primary text-xs font-bold mb-2">{dayLabels[day]}</p>
+                      <div className="space-y-2">
+                        {dayActivities.length === 0 ? (
+                          <p className="text-muted-foreground text-xs">—</p>
+                        ) : (
+                          dayActivities.map(activity => (
+                            <label key={activity.id} className="flex items-start gap-1.5 cursor-pointer">
+                              <Checkbox
+                                checked={activity.is_completed}
+                                onCheckedChange={(checked) => toggleActivity(activity.id, checked)}
+                                className="mt-0.5 shrink-0"
+                              />
+                              <span className={`text-xs leading-snug ${activity.is_completed ? "line-through text-muted-foreground" : "text-foreground"}`}>
+                                {activity.activity}
+                              </span>
+                            </label>
+                          ))
+                        )}
+                      </div>
                     </div>
-                  </div>
-                );
-              })}
+                  );
+                })}
+              </div>
             </div>
           </div>
         ))}

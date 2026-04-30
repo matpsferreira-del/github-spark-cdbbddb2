@@ -7,14 +7,13 @@ export default function JobTitlesSlide({ plan, jobTitles, generating, onGenerate
   const decisionMakers = jobTitles.filter(j => ["target_position", "decision_maker"].includes(j.type));
   const hrRecruiters = jobTitles.filter(j => j.type === "hr_recruiter");
 
-  // Parse "Title|||Description" format
   const parseTitle = (title: string) => {
     const parts = title.split("|||");
     return { title: parts[0], description: parts[1] || null };
   };
 
   return (
-    <div className="p-8">
+    <div className="p-4 md:p-8">
       <div className="flex items-center justify-between mb-1">
         <p className="text-primary text-sm tracking-[0.2em] font-medium">NOMENCLATURAS & ALVOS</p>
         {jobTitles.length === 0 && (
@@ -24,7 +23,7 @@ export default function JobTitlesSlide({ plan, jobTitles, generating, onGenerate
           </Button>
         )}
       </div>
-      <h2 className="text-3xl font-bold text-foreground mb-1">Cargos & Variações</h2>
+      <h2 className="text-xl md:text-3xl font-bold text-foreground mb-1">Cargos & Variações</h2>
       <p className="text-sm mb-6">
         <span className="text-muted-foreground">Cargo base: </span>
         <span className="text-primary font-medium">{plan.current_position}</span>
@@ -33,8 +32,7 @@ export default function JobTitlesSlide({ plan, jobTitles, generating, onGenerate
       {jobTitles.length === 0 ? (
         <p className="text-muted-foreground text-center py-12">Clique em "Gerar com IA" para criar variações de cargos.</p>
       ) : (
-        <div className="grid grid-cols-3 gap-6">
-          {/* Variações para vagas */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 md:gap-8">
           <div>
             <div className="flex items-center gap-2 mb-2">
               <Search className="w-4 h-4 text-primary" />
@@ -51,7 +49,6 @@ export default function JobTitlesSlide({ plan, jobTitles, generating, onGenerate
             </div>
           </div>
 
-          {/* Decisores da área */}
           <div>
             <div className="flex items-center gap-2 mb-2">
               <Crown className="w-4 h-4 text-yellow-500" />
@@ -73,7 +70,6 @@ export default function JobTitlesSlide({ plan, jobTitles, generating, onGenerate
             </div>
           </div>
 
-          {/* RH & Recrutadores */}
           <div>
             <div className="flex items-center gap-2 mb-2">
               <Star className="w-4 h-4 text-destructive" />
