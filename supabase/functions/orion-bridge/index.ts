@@ -11,12 +11,26 @@
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
 
+// orion-bridge is a server-to-server API — no browser origin needed.
+// Restrict CORS to the OrionPipe domain only.
+const ALLOWED_ORIGIN = Deno.env.get("ORION_ALLOWED_ORIGIN") ?? "https://orionpipe.vercel.app";
+
 const corsHeaders = {
-  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Origin": ALLOWED_ORIGIN,
   "Access-Control-Allow-Headers":
     "authorization, x-client-info, apikey, content-type, x-orion-secret",
   "Access-Control-Allow-Methods": "POST, OPTIONS",
 };
+
+// Constant-time string comparison to prevent timing attacks on secret
+function safeCompare(a: string, b: string): boolean {
+  if (a.length !== b.length) return false;
+  let diff = 0;
+  for (let i = 0; i < a.length; i++) {
+    diff |= a.charCodeAt(i) ^ b.charCodeAt(i);
+  }
+  return diff === 0;
+}
 
 const json = (body: unknown, status = 200) =>
   new Response(JSON.stringify(body), {
@@ -589,13 +603,13 @@ Deno.serve(async (req) => {
     return json({ error: "Method not allowed" }, 405);
   }
 
-  // Validate shared secret
+  // Validate shared secret using constant-time comparison (prevents timing attacks)
   const secret = req.headers.get("x-orion-secret");
   const expected = Deno.env.get("ORION_BRIDGE_SECRET");
   if (!expected) {
-    return json({ error: "Bridge secret not configured" }, 500);
+    return json({ error: "Server configuration error" }, 500);
   }
-  if (!secret || secret !== expected) {
+  if (!secret || !safeCompare(secret, expected)) {
     return json({ error: "Unauthorized" }, 401);
   }
 
@@ -633,7 +647,8 @@ Deno.serve(async (req) => {
         return json({ error: `Unknown action: ${action}` }, 400);
     }
   } catch (e) {
+    // Log full error server-side but never expose internal details to caller
     console.error("orion-bridge error", e);
-    return json({ error: (e as Error).message ?? "Internal error" }, 500);
+    return json({ error: "Internal server error" }, 500);
   }
 });

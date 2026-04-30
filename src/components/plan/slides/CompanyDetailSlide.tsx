@@ -12,6 +12,7 @@ interface Props {
   contacts: ContactMapping[];
   onBack: () => void;
   onRefreshData: () => void;
+  isMentee?: boolean;
 }
 
 const tierColors: Record<string, string> = {
@@ -28,7 +29,7 @@ const stageLabels: Record<string, string> = {
   replied: "Respondeu",
 };
 
-export default function CompanyDetailSlide({ company, contacts, onBack, onRefreshData }: Props) {
+export default function CompanyDetailSlide({ company, contacts, onBack, onRefreshData, isMentee }: Props) {
   const [addingOpening, setAddingOpening] = useState(false);
   const [openingTitle, setOpeningTitle] = useState("");
   const [openingUrl, setOpeningUrl] = useState("");
@@ -98,22 +99,24 @@ export default function CompanyDetailSlide({ company, contacts, onBack, onRefres
         <Button variant="ghost" size="sm" onClick={onBack}>
           <ArrowLeft className="w-4 h-4 mr-1" /> Voltar ao Tier
         </Button>
-        <Button
-          variant="destructive"
-          size="sm"
-          onClick={async () => {
-            if (!confirm("Tem certeza que deseja excluir esta empresa?")) return;
-            const { error } = await supabase.from("companies").delete().eq("id", company.id);
-            if (error) toast.error("Erro ao excluir empresa");
-            else {
-              toast.success("Empresa excluída!");
-              onRefreshData();
-              onBack();
-            }
-          }}
-        >
-          <Trash2 className="w-4 h-4 mr-1" /> Excluir Empresa
-        </Button>
+        {!isMentee && (
+          <Button
+            variant="destructive"
+            size="sm"
+            onClick={async () => {
+              if (!confirm("Tem certeza que deseja excluir esta empresa?")) return;
+              const { error } = await supabase.from("companies").delete().eq("id", company.id);
+              if (error) toast.error("Erro ao excluir empresa");
+              else {
+                toast.success("Empresa excluída!");
+                onRefreshData();
+                onBack();
+              }
+            }}
+          >
+            <Trash2 className="w-4 h-4 mr-1" /> Excluir Empresa
+          </Button>
+        )}
       </div>
 
       <div className="flex items-center gap-3 mb-2">
@@ -130,9 +133,11 @@ export default function CompanyDetailSlide({ company, contacts, onBack, onRefres
             <Briefcase className="w-5 h-5 text-primary" />
             <h3 className="text-foreground font-semibold text-lg">Vagas Encontradas</h3>
           </div>
-          <Button size="sm" onClick={() => setAddingOpening(!addingOpening)}>
-            <Plus className="w-4 h-4 mr-1" /> Adicionar Vaga
-          </Button>
+          {!isMentee && (
+            <Button size="sm" onClick={() => setAddingOpening(!addingOpening)}>
+              <Plus className="w-4 h-4 mr-1" /> Adicionar Vaga
+            </Button>
+          )}
         </div>
 
         {addingOpening && (
@@ -166,9 +171,11 @@ export default function CompanyDetailSlide({ company, contacts, onBack, onRefres
                     </a>
                   )}
                 </div>
-                <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive" onClick={() => removeOpening(idx)}>
-                  <Trash2 className="w-3.5 h-3.5" />
-                </Button>
+                {!isMentee && (
+                  <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive" onClick={() => removeOpening(idx)}>
+                    <Trash2 className="w-3.5 h-3.5" />
+                  </Button>
+                )}
               </div>
             ))}
           </div>

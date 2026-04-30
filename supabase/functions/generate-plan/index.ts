@@ -2,8 +2,10 @@ import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.100.0";
 import Anthropic from "https://esm.sh/@anthropic-ai/sdk@0.32.1";
 
+const ALLOWED_ORIGIN = Deno.env.get("APP_ALLOWED_ORIGIN") ?? "https://github-spark-cdbbddb2.vercel.app";
+
 const corsHeaders = {
-  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Origin": ALLOWED_ORIGIN,
   "Access-Control-Allow-Headers":
     "authorization, x-client-info, apikey, content-type",
 };
@@ -584,9 +586,11 @@ serve(async (req: Request) => {
   } catch (e) {
     console.error("generate-plan error:", e);
     const msg = e instanceof Error ? e.message : "Internal error";
-    const status = msg.includes("overloaded") || msg.includes("529") ? 529 : 500;
-    return new Response(JSON.stringify({ error: msg }), {
-      status, headers: { ...corsHeaders, "Content-Type": "application/json" },
+    // Only expose "overloaded" to the client so the UI can show a retry message
+    const isOverloaded = msg.includes("overloaded") || msg.includes("529");
+    return new Response(JSON.stringify({ error: isOverloaded ? "AI service temporarily unavailable. Please try again." : "Internal server error" }), {
+      status: isOverloaded ? 529 : 500,
+      headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   }
 });

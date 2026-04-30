@@ -13,6 +13,7 @@ export interface PlanSlideProps {
   onGenerate: (type: string) => void;
   onRefreshData: () => void;
   isMentee?: boolean;
+  menteeToken?: string;
 }
 
 export interface DiagnosisData {

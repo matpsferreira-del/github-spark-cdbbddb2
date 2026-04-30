@@ -16,13 +16,25 @@ const dayLabels: Record<string, string> = {
 };
 const days = ["monday", "tuesday", "wednesday", "thursday", "friday"];
 
-export default function ScheduleSlide({ plan, schedule, generating, onGenerate, onRefreshData }: PlanSlideProps) {
+export default function ScheduleSlide({ plan, schedule, generating, onGenerate, onRefreshData, isMentee, menteeToken }: PlanSlideProps) {
   const data = parseDiagnosisData(plan.general_notes);
   const monthGoals = data.month_goals;
   const completedCount = schedule.filter(a => a.is_completed).length;
 
   const toggleActivity = async (activityId: string, checked: boolean | "indeterminate") => {
     const newState = checked === true;
+
+    if (isMentee && menteeToken) {
+      const { error } = await supabase.rpc("update_mentee_schedule", {
+        p_token: menteeToken,
+        p_activity_id: activityId,
+        p_is_completed: newState,
+      });
+      if (error) toast.error("Erro ao atualizar atividade");
+      else onRefreshData();
+      return;
+    }
+
     const { error } = await supabase
       .from("schedule_activities")
       .update({
@@ -39,10 +51,12 @@ export default function ScheduleSlide({ plan, schedule, generating, onGenerate, 
     return (
       <div className="h-full flex flex-col items-center justify-center p-12">
         <p className="text-muted-foreground mb-4">Nenhuma atividade gerada.</p>
-        <Button onClick={() => onGenerate("schedule")} disabled={generating}>
-          {generating ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Wand2 className="w-4 h-4 mr-2" />}
-          Gerar Rotina
-        </Button>
+        {!isMentee && (
+          <Button onClick={() => onGenerate("schedule")} disabled={generating}>
+            {generating ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Wand2 className="w-4 h-4 mr-2" />}
+            Gerar Rotina
+          </Button>
+        )}
       </div>
     );
   }
@@ -58,10 +72,12 @@ export default function ScheduleSlide({ plan, schedule, generating, onGenerate, 
             <p className="text-2xl font-bold text-foreground">{completedCount}/{schedule.length}</p>
             <p className="text-muted-foreground text-xs">atividades</p>
           </div>
-          <Button onClick={() => onGenerate("schedule")} disabled={generating} size="sm" variant="outline">
-            {generating ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Wand2 className="w-4 h-4 mr-2" />}
-            Gerar Rotina
-          </Button>
+          {!isMentee && (
+            <Button onClick={() => onGenerate("schedule")} disabled={generating} size="sm" variant="outline">
+              {generating ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Wand2 className="w-4 h-4 mr-2" />}
+              Gerar Rotina
+            </Button>
+          )}
         </div>
       </div>
       <h2 className="text-3xl font-bold text-foreground mb-6">Cronograma & Rotina</h2>

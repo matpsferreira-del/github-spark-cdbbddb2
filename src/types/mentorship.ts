@@ -20,6 +20,8 @@ export type MentorshipPlan = {
   };
   target_company_count: number;
   status: "draft" | "completed" | "archived";
+  visible_slides: string[] | null;
+  lgpd_consent_at: string | null;
   created_at: string;
   updated_at: string;
 };
